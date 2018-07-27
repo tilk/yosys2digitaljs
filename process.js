@@ -3,6 +3,32 @@
 
 let assert = require('assert');
 
+const header = `<!doctype html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html;charset=UTF-8" />
+    <script type="text/javascript" src="simcir.js"></script>
+    <link rel="stylesheet" type="text/css" href="simcir.css" />
+    <script type="text/javascript" src="simcir-basicset.js"></script>
+    <link rel="stylesheet" type="text/css" href="simcir-basicset.css" />
+    <script type="text/javascript" src="simcir-library.js"></script>
+    <title></title>
+  </head>
+  <body>`;
+
+function module_deps(data) {
+    const out = [];
+    for (const name in data.modules) {
+        const mod = data.modules[name];
+        for (const cname in mod.cells) {
+            const cell = mod.cells[cname];
+            if (cell.type in data.modules)
+                out.push([cell.type, name]);
+        }
+    }
+    return out;
+}
+
 function order_ports(data) {
     const binmap = {A: 'in0', B: 'in1', Y: 'out0'};
     const out = {};
@@ -144,9 +170,23 @@ function yosys_to_simcir(data, portmaps) {
     return out
 }
 
+let topsort = require('topsort');
 let fs = require('fs');
 let obj = JSON.parse(fs.readFileSync('output.json', 'utf8'));
 let portmaps = order_ports(obj);
 let out = yosys_to_simcir(obj, portmaps);
-console.log(JSON.stringify(out, null, 2));
+let toporder = topsort(module_deps(obj));
+let toplevel = toporder.pop();
+console.log(header);
+console.log('<script>');
+for (const x of toporder) {
+    console.log('simcir.registerDevice("'+x+'", ');
+    console.log(JSON.stringify(out[x], null, 2));
+    console.log(');');
+}
+console.log('</script>');
+console.log('<div class="simcir">');
+console.log(JSON.stringify(out[toplevel], null, 2));
+console.log('</div>');
+console.log('</body></html>');
 

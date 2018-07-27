@@ -1,0 +1,15 @@
+{
+  "name": "yosys-sim",
+  "version": "0.0.1",
+  "description": "Export Yosys netlists to a logic simulator",
+  "main": "process.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Marek Materzok",
+  "license": "BSD-2-Clause",
+  "dependencies": {
+    "topsort": "^0.0.2",
+    "dagre": "^0.8.0"
+  }
+}
