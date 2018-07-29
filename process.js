@@ -33,9 +33,11 @@ function module_deps(data) {
 }
 
 function order_ports(data) {
+    const unmap = {A: 'in0', Y: 'out0'};
     const binmap = {A: 'in0', B: 'in1', Y: 'out0'};
     const out = {};
-    ['$and', '$or', '$xor'].forEach((nm) => out[nm] = binmap);
+    ['$and', '$or', '$xor', '$xnor'].forEach((nm) => out[nm] = binmap);
+    ['$not'].forEach((nm) => out[nm] = unmap);
     for (const name in data.modules) {
         const mod = data.modules[name];
         const portmap = {};
@@ -62,6 +64,13 @@ function order_ports(data) {
 }
 
 function yosys_to_simcir(data, portmaps) {
+    const typemap = {
+        '$and': 'AND',
+        '$or': 'OR',
+        '$xor': 'XOR',
+        '$xnor': 'XNOR',
+        '$not': 'NOT'
+    };
     const out = {};
     for (const name in data.modules) {
         let n = 0;
@@ -125,25 +134,24 @@ function yosys_to_simcir(data, portmaps) {
                 y: 0,
                 label: cname
             };
+            if (cell.type in typemap)
+                dev.type = typemap[cell.type];
+            else
+                dev.type = cell.type;
             switch (cell.type) {
-                case '$and': dev.type = 'AND'; break;
-                case '$or': dev.type = 'OR'; break;
-                case '$xor': dev.type = 'XOR'; break;
-                default:
-                    dev.type = cell.type;
-                    //throw Error('Invalid cell type: ' + cell.type);
-            }
-            switch (cell.type) {
-                case '$and': case '$or': case '$xor':
+                case '$not':
+                    assert(cell.connections.A.length == 1);
+                    assert(cell.connections.Y.length == 1);
+                    assert(cell.port_directions.A == 'input');
+                    assert(cell.port_directions.Y == 'output');
+                    break;
+                case '$and': case '$or': case '$xor': case '$xnor':
                     assert(cell.connections.A.length == 1);
                     assert(cell.connections.B.length == 1);
                     assert(cell.connections.Y.length == 1);
                     assert(cell.port_directions.A == 'input');
                     assert(cell.port_directions.B == 'input');
                     assert(cell.port_directions.Y == 'output');
-//                    add_net_target(cell.connections.A[0], dname, "in0");
-//                    add_net_target(cell.connections.B[0], dname, "in1");
-//                    add_net_source(cell.connections.Y[0], dname, "out0");
                     break;
                 default:
                     //throw Error('Invalid cell type: ' + cell.type);
