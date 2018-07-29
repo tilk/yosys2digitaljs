@@ -1,7 +1,10 @@
 #!/usr/bin/node
 "use strict";
 
-let assert = require('assert');
+const assert = require('assert');
+const topsort = require('topsort');
+const fs = require('fs');
+const dagre = require('dagre');
 
 const header = `<!doctype html>
 <html>
@@ -170,11 +173,52 @@ function yosys_to_simcir(data, portmaps) {
     return out
 }
 
-let topsort = require('topsort');
-let fs = require('fs');
+function layout_circuit(circ) {
+    const g = new dagre.graphlib.Graph();
+    const devmap = {};
+    let maxx = 0, maxy = 0;
+
+    g.setGraph({rankdir: 'RL'});
+    g.setDefaultEdgeLabel(function() { return {}; });
+
+    for (const dev of circ.devices) {
+        g.setNode(dev.id, {
+            id: dev.id,
+            width: 32,
+            height: 32
+        });
+        devmap[dev.id] = dev;
+    }
+
+    for (const conn of circ.connectors) {
+        g.setEdge(conn.from.split('.')[0], conn.to.split('.')[0]);
+    }
+
+    dagre.layout(g);
+
+    for (const nname of g.nodes()) {
+        const node = g.node(nname);
+        devmap[node.id].x = node.x;
+        devmap[node.id].y = node.y;
+        maxx = Math.max(maxx, node.x);
+        maxy = Math.max(maxy, node.y);
+        //console.log(nname + ":" + JSON.stringify(node));
+    }
+
+    circ.width = maxx + 256;
+    circ.height = maxy + 64;
+}
+
+function layout_circuits(circs) {
+    for (const name in circs) {
+        layout_circuit(circs[name]);
+    }
+}
+
 let obj = JSON.parse(fs.readFileSync('output.json', 'utf8'));
 let portmaps = order_ports(obj);
 let out = yosys_to_simcir(obj, portmaps);
+layout_circuits(out);
 let toporder = topsort(module_deps(obj));
 let toplevel = toporder.pop();
 console.log(header);
