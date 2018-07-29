@@ -23,6 +23,7 @@ function module_deps(data) {
     const out = [];
     for (const name in data.modules) {
         const mod = data.modules[name];
+        out.push([name, 1/0]);
         for (const cname in mod.cells) {
             const cell = mod.cells[cname];
             if (cell.type in data.modules)
@@ -228,6 +229,7 @@ let portmaps = order_ports(obj);
 let out = yosys_to_simcir(obj, portmaps);
 layout_circuits(out);
 let toporder = topsort(module_deps(obj));
+toporder.pop();
 let toplevel = toporder.pop();
 console.log(header);
 console.log('<script>');
