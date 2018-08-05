@@ -10,6 +10,7 @@
   "license": "BSD-2-Clause",
   "dependencies": {
     "topsort": "^0.0.2",
-    "dagre": "^0.8.0"
+    "dagre": "^0.8.0",
+    "hashmap": "^2.3.0"
   }
 }

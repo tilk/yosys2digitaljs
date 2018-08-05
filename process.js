@@ -5,6 +5,7 @@ const assert = require('assert');
 const topsort = require('topsort');
 const fs = require('fs');
 const dagre = require('dagre');
+const HashMap = require('hashmap');
 
 const header = `<!doctype html>
 <html>
@@ -55,19 +56,19 @@ function yosys_to_simcir(data, portmaps) {
         function gen_name() {
             return 'dev' + n++;
         }
-        const nets = {};
+        const nets = new HashMap();
         function get_net(k) {
-            if (!(k in nets))
-                nets[k] = {source: undefined, targets: []};
-            return nets[k];
+            if (!nets.has(k))
+                nets.set(k, {source: undefined, targets: []});
+            return nets.get(k);
         }
         function add_net_source(k, d, p) {
-            let net = get_net(k);
+            const net = get_net(k);
             assert(net.source === undefined);
             net.source = { id: d, port: p };
         }
         function add_net_target(k, d, p) {
-            let net = get_net(k);
+            const net = get_net(k);
             net.targets.push({ id: d, port: p });
         }
         const mod = data.modules[name];
@@ -82,17 +83,17 @@ function yosys_to_simcir(data, portmaps) {
             let dev = {
                 label: pname,
                 net: pname,
-                order: n
+                order: n,
+                bits: port.bits.length
             };
-            assert(port.bits.length == 1);
             switch (port.direction) {
                 case 'input':
                     dev.type = '$input';
-                    add_net_source(port.bits[0], dname, 'out');
+                    add_net_source(port.bits, dname, 'out');
                     break;
                 case 'output':
                     dev.type = '$output';
-                    add_net_target(port.bits[0], dname, 'in');
+                    add_net_target(port.bits, dname, 'in');
                     break;
                 default: throw Error('Invalid port direction: ' + port.direction);
             }
@@ -111,18 +112,18 @@ function yosys_to_simcir(data, portmaps) {
                 dev.type = cell.type;
             switch (cell.type) {
                 case '$not':
-                    assert(cell.connections.A.length == 1);
-                    assert(cell.connections.Y.length == 1);
+                    assert(cell.connections.A.length == cell.connections.Y.length);
                     assert(cell.port_directions.A == 'input');
                     assert(cell.port_directions.Y == 'output');
+                    dev.bits = cell.connections.Y.length;
                     break;
                 case '$and': case '$or': case '$xor': case '$xnor':
-                    assert(cell.connections.A.length == 1);
-                    assert(cell.connections.B.length == 1);
-                    assert(cell.connections.Y.length == 1);
+                    assert(cell.connections.A.length == cell.connections.Y.length);
+                    assert(cell.connections.B.length == cell.connections.Y.length);
                     assert(cell.port_directions.A == 'input');
                     assert(cell.port_directions.B == 'input');
                     assert(cell.port_directions.Y == 'output');
+                    dev.bits = cell.connections.Y.length;
                     break;
                 default:
                     //throw Error('Invalid cell type: ' + cell.type);
@@ -132,10 +133,10 @@ function yosys_to_simcir(data, portmaps) {
                 const pconn = cell.connections[pname];
                 switch (pdir) {
                     case 'input':
-                        add_net_target(pconn[0], dname, portmap[pname]);
+                        add_net_target(pconn, dname, portmap[pname]);
                         break;
                     case 'output':
-                        add_net_source(pconn[0], dname, portmap[pname]);
+                        add_net_source(pconn, dname, portmap[pname]);
                         break;
                     default:
                         throw Error('Invalid port direction: ' + pdir);
@@ -143,8 +144,7 @@ function yosys_to_simcir(data, portmaps) {
             }
             mout.devices[dname] = dev;
         }
-        for (const nnum in nets) {
-            const net = nets[nnum];
+        for (const net of nets.values()) {
             for (const target in net.targets)
                 mout.connectors.push({to: net.targets[target], from: net.source});
         }
@@ -204,8 +204,10 @@ let toplevel = toporder.pop();
 let output = out[toplevel];
 for (const name in output.devices) {
     const dev = output.devices[name];
-    if (dev.type == '$input') dev.type = '$button';
-    if (dev.type == '$output') dev.type = '$not';
+    if (dev.type == '$input')
+        dev.type = dev.bits == 1 ? '$button' : '$numentry';
+    if (dev.type == '$output')
+        dev.type = dev.bits == 1 ? '$lamp' : '$numdisplay';
 }
 output.subcircuits = {};
 for (const x of toporder) output.subcircuits[x] = out[x];
