@@ -40,35 +40,15 @@ function order_ports(data) {
         const portmap = {};
         const ins = [], outs = [];
         for (const pname in mod.ports) {
-            portmap[pname] = pname;/*
-            const port = mod.ports[pname];
-            const pdata = {name: pname, num: port.bits[0]};
-            switch (port.direction) {
-                case 'input': ins.push(pdata); break;
-                case 'output': outs.push(pdata); break;
-                default: throw Error("Invalid port direction: " + port.direction);
-            }*/
-        }/*
-        function comp(a, b) {
-            return a.num - b.num;
+            portmap[pname] = pname;
         }
-        ins.sort(comp);
-        outs.sort(comp);
-        for (const k in ins) portmap[ins[k].name] = "in" + k;
-        for (const k in outs) portmap[outs[k].name] = "out" + k;*/
         out[name] = portmap;
     }
     return out;
 }
 
 function yosys_to_simcir(data, portmaps) {
-    const typemap = {}; /*{
-        '$and': 'AND',
-        '$or': 'OR',
-        '$xor': 'XOR',
-        '$xnor': 'XNOR',
-        '$not': 'NOT'
-    };*/
+    const typemap = {};
     const out = {};
     for (const name in data.modules) {
         let n = 0;
@@ -92,8 +72,6 @@ function yosys_to_simcir(data, portmaps) {
         }
         const mod = data.modules[name];
         const mout = {
-//            width: 800,
-//            height: 500,
             devices: {},
             connectors: []
         }
@@ -102,9 +80,6 @@ function yosys_to_simcir(data, portmaps) {
             const port = mod.ports[pname];
             const dname = gen_name();
             let dev = {
-//                id: dname,
-//                x: 0,
-//                y: 0,
                 label: pname,
                 net: pname,
                 order: n
@@ -128,9 +103,6 @@ function yosys_to_simcir(data, portmaps) {
             const portmap = portmaps[cell.type];
             const dname = gen_name();
             let dev = {
-//                id: dname,
-//                x: 0,
-//                y: 0,
                 label: cname
             };
             if (cell.type in typemap)
