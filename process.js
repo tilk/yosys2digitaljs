@@ -70,11 +70,11 @@ function yosys_to_simcir_mod(mod) {
             nets.set(k, {source: undefined, targets: []});
         return nets.get(k);
     }
-    function add_net_source(k, d, p) {
+    function add_net_source(k, d, p, primary) {
         const net = get_net(k);
         assert(net.source === undefined);
         net.source = { id: d, port: p };
-        for (const [nbit, bit] of k.entries()) {
+        if (primary) for (const [nbit, bit] of k.entries()) {
             bits.set(bit, { id: d, port: p, num: nbit });
         }
         devnets.get(d).set(p, k);
@@ -100,7 +100,7 @@ function yosys_to_simcir_mod(mod) {
         switch (port.direction) {
             case 'input':
                 dev.type = '$input';
-                add_net_source(port.bits, dname, 'out');
+                add_net_source(port.bits, dname, 'out', true);
                 break;
             case 'output':
                 dev.type = '$output';
@@ -118,19 +118,32 @@ function yosys_to_simcir_mod(mod) {
             label: cname
         };
         dev.type = cell.type;
+        function match_port(con, sig, sz) {
+            if (con.length > sz)
+                con.splice(sz, con.length - sz);
+            else if (con.length < sz) {
+                const pad = sig ? con.slice(-1)[0] : '0';
+                con.splice(con.length, 0, ...Array(sz - con.length).fill(pad));
+            }
+        }
         switch (cell.type) {
             case '$not':
-                assert(cell.connections.A.length == cell.connections.Y.length);
+                assert(cell.connections.A.length == cell.parameters.A_WIDTH);
+                assert(cell.connections.Y.length == cell.parameters.Y_WIDTH);
                 assert(cell.port_directions.A == 'input');
                 assert(cell.port_directions.Y == 'output');
+                match_port(cell.connections.A, cell.parameters.A_SIGNED, cell.connections.Y.length);
                 dev.bits = cell.connections.Y.length;
                 break;
             case '$and': case '$or': case '$xor': case '$xnor':
-                assert(cell.connections.A.length == cell.connections.Y.length);
-                assert(cell.connections.B.length == cell.connections.Y.length);
+                assert(cell.connections.A.length == cell.parameters.A_WIDTH);
+                assert(cell.connections.B.length == cell.parameters.B_WIDTH);
+                assert(cell.connections.Y.length == cell.parameters.Y_WIDTH);
                 assert(cell.port_directions.A == 'input');
                 assert(cell.port_directions.B == 'input');
                 assert(cell.port_directions.Y == 'output');
+                match_port(cell.connections.A, cell.parameters.A_SIGNED, cell.connections.Y.length);
+                match_port(cell.connections.B, cell.parameters.B_SIGNED, cell.connections.Y.length);
                 dev.bits = cell.connections.Y.length;
                 break;
             default:
@@ -143,7 +156,7 @@ function yosys_to_simcir_mod(mod) {
                     add_net_target(pconn, dname, portmap[pname]);
                     break;
                 case 'output':
-                    add_net_source(pconn, dname, portmap[pname]);
+                    add_net_source(pconn, dname, portmap[pname], true);
                     break;
                 default:
                     throw Error('Invalid port direction: ' + pdir);
