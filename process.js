@@ -65,9 +65,6 @@ function yosys_to_simcir_mod(mod) {
         return nm;
     }
     function get_net(k) {
-        // fix up bad JSON from yosys :(
-        for (const i in k)
-            if (typeof k[i] == 'string') k[i] = Number(k[i]);
         // create net if does not exist yet
         if (!nets.has(k))
             nets.set(k, {source: undefined, targets: []});
@@ -162,7 +159,7 @@ function yosys_to_simcir_mod(mod) {
         let pbitinfo = undefined;
         for (const bit of nbits) {
             let bitinfo = bits.get(bit);
-            if (bitinfo == undefined && (bit == 0 || bit == 1))
+            if (bitinfo == undefined && (bit == '0' || bit == '1' || bit == 'x'))
                 bitinfo = 'const';
             if (groups.slice(-1)[0].length > 0 && 
                    (typeof bitinfo != typeof pbitinfo ||
@@ -191,9 +188,10 @@ function yosys_to_simcir_mod(mod) {
     // Add constants
     for (const [nbits, net] of nets.entries()) {
         if (net.source !== undefined) continue;
-        if (!nbits.every(x => x == 0 || x == 1)) continue;
+        if (!nbits.every(x => x == '0' || x == '1' || x == 'x'))
+            continue;
         const dname = gen_name();
-        const val = nbits.map(x => x == 1 ? 1 : -1);
+        const val = nbits.map(x => x == '1' ? 1 : x == '0' ? -1 : 0);
         const dev = {
 //            label: String(val), // TODO
             type: '$constant',
