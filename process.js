@@ -88,36 +88,38 @@ function yosys_to_simcir_mod(mod) {
         devices: {},
         connectors: []
     }
+    function add_device(dev) {
+        const dname = gen_name();
+        mout.devices[dname] = dev;
+        return dname;
+    }
     // Add inputs/outputs
     for (const [pname, port] of Object.entries(mod.ports)) {
-        const dname = gen_name();
-        const dev = {
+        const dname = add_device({
+            celltype: '$' + port.direction,
             label: pname,
             net: pname,
             order: n,
             bits: port.bits.length
-        };
+        });
         switch (port.direction) {
             case 'input':
-                dev.celltype = '$input';
                 add_net_source(port.bits, dname, 'out', true);
                 break;
             case 'output':
-                dev.celltype = '$output';
                 add_net_target(port.bits, dname, 'in');
                 break;
             default: throw Error('Invalid port direction: ' + port.direction);
         }
-        mout.devices[dname] = dev;
     }
     // Add gates
     for (const [cname, cell] of Object.entries(mod.cells)) {
         const portmap = portmaps[cell.type];
-        const dname = gen_name();
         const dev = {
-            label: cname
+            label: cname,
+            celltype: cell.type
         };
-        dev.celltype = cell.type;
+        const dname = add_device(dev);
         function match_port(con, sig, sz) {
             if (con.length > sz)
                 con.splice(sz, con.length - sz);
@@ -162,7 +164,6 @@ function yosys_to_simcir_mod(mod) {
                     throw Error('Invalid port direction: ' + pdir);
             }
         }
-        mout.devices[dname] = dev;
     }
     // Group bits into nets for complex sources
     for (const [nbits, net] of nets.entries()) {
@@ -187,31 +188,27 @@ function yosys_to_simcir_mod(mod) {
             pbitinfo = bitinfo;
         }
         if (groups.length == 1) continue;
-        const dname = gen_name();
-        const dev = {
+        const dname = add_device({
             celltype: '$busgroup',
             groups: groups.map(g => g.length)
-        };
+        });
         add_net_source(nbits, dname, 'out');
         for (const [gn, group] of groups.entries()) {
             add_net_target(group, dname, 'in' + gn);
         }
-        mout.devices[dname] = dev;
     }
     // Add constants
     for (const [nbits, net] of nets.entries()) {
         if (net.source !== undefined) continue;
         if (!nbits.every(x => x == '0' || x == '1' || x == 'x'))
             continue;
-        const dname = gen_name();
         const val = nbits.map(x => x == '1' ? 1 : x == '0' ? -1 : 0);
-        const dev = {
+        const dname = add_device({
 //            label: String(val), // TODO
             celltype: '$constant',
             constant: val
-        };
+        });
         add_net_source(nbits, dname, 'out');
-        mout.devices[dname] = dev;
     }
     // Select bits from complex targets
     for (const [nbits, net] of nets.entries()) {
@@ -225,18 +222,16 @@ function yosys_to_simcir_mod(mod) {
         assert(bitinfos.every(info => info.id == bitinfos[0].id &&
                                       info.port == bitinfos[0].port));
         const cconn = devnets.get(bitinfos[0].id).get(bitinfos[0].port);
-        const dname = gen_name();
-        const dev = {
+        const dname = add_device({
             celltype: '$busslice',
             slice: {
                 first: bitinfos[0].num,
                 count: bitinfos.length,
                 total: cconn.length
             }
-        };
+        });
         add_net_source(nbits, dname, 'out');
         add_net_target(cconn, dname, 'in');
-        mout.devices[dname] = dev;
     }
     // Generate connections between devices
     for (const [nbits, net] of nets.entries()) {
