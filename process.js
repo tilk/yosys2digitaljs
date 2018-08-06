@@ -55,12 +55,20 @@ function yosys_to_simcir(data, portmaps) {
 }
 
 function yosys_to_simcir_mod(mod) {
+    const nets = new HashMap();
+    const bits = new Map();
+    const devnets = new Map();
     let n = 0;
     function gen_name() {
-        return 'dev' + n++;
+        const nm =  'dev' + n++;
+        devnets.set(nm, new Map());
+        return nm;
     }
-    const nets = new HashMap();
     function get_net(k) {
+        // fix up bad JSON from yosys :(
+        for (const i in k)
+            if (typeof k[i] == 'string') k[i] = Number(k[i]);
+        // create net if does not exist yet
         if (!nets.has(k))
             nets.set(k, {source: undefined, targets: []});
         return nets.get(k);
@@ -69,18 +77,24 @@ function yosys_to_simcir_mod(mod) {
         const net = get_net(k);
         assert(net.source === undefined);
         net.source = { id: d, port: p };
+        for (const [nbit, bit] of k.entries()) {
+            bits.set(bit, { id: d, port: p, num: nbit });
+        }
+        devnets.get(d).set(p, k);
     }
     function add_net_target(k, d, p) {
         const net = get_net(k);
         net.targets.push({ id: d, port: p });
+        devnets.get(d).set(p, k);
     }
     const mout = {
         devices: {},
         connectors: []
     }
+    // Add inputs/outputs
     for (const [pname, port] of Object.entries(mod.ports)) {
         const dname = gen_name();
-        let dev = {
+        const dev = {
             label: pname,
             net: pname,
             order: n,
@@ -99,10 +113,11 @@ function yosys_to_simcir_mod(mod) {
         }
         mout.devices[dname] = dev;
     }
+    // Add gates
     for (const [cname, cell] of Object.entries(mod.cells)) {
         const portmap = portmaps[cell.type];
         const dname = gen_name();
-        let dev = {
+        const dev = {
             label: cname
         };
         dev.type = cell.type;
@@ -139,7 +154,85 @@ function yosys_to_simcir_mod(mod) {
         }
         mout.devices[dname] = dev;
     }
-    for (const net of nets.values()) {
+    // Group bits into nets for complex sources
+    for (const [nbits, net] of nets.entries()) {
+        if (net.source !== undefined) continue;
+        const groups = [[]];
+        let group = [];
+        let pbitinfo = undefined;
+        for (const bit of nbits) {
+            let bitinfo = bits.get(bit);
+            if (bitinfo == undefined && (bit == 0 || bit == 1))
+                bitinfo = 'const';
+            if (groups.slice(-1)[0].length > 0 && 
+                   (typeof bitinfo != typeof pbitinfo ||
+                        typeof bitinfo == 'object' &&
+                        typeof pbitinfo == 'object' &&
+                            (bitinfo.id != pbitinfo.id ||
+                             bitinfo.port != pbitinfo.port ||
+                             bitinfo.num != pbitinfo.num + 1))) {
+                groups.push([]);
+            }
+            groups.slice(-1)[0].push(bit);
+            pbitinfo = bitinfo;
+        }
+        if (groups.length == 1) continue;
+        const dname = gen_name();
+        const dev = {
+            type: '$busgroup',
+            groups: groups.map(g => g.length)
+        };
+        add_net_source(nbits, dname, 'out');
+        for (const [gn, group] of groups.entries()) {
+            add_net_target(group, dname, 'in' + gn);
+        }
+        mout.devices[dname] = dev;
+    }
+    // Add constants
+    for (const [nbits, net] of nets.entries()) {
+        if (net.source !== undefined) continue;
+        if (!nbits.every(x => x == 0 || x == 1)) continue;
+        const dname = gen_name();
+        const val = nbits.map(x => x == 1 ? 1 : -1);
+        const dev = {
+//            label: String(val), // TODO
+            type: '$constant',
+            constant: val
+        };
+        add_net_source(nbits, dname, 'out');
+        mout.devices[dname] = dev;
+    }
+    // Select bits from complex targets
+    for (const [nbits, net] of nets.entries()) {
+        if (net.source !== undefined) continue;
+        // constants should be already handled!
+        assert(nbits.every(x => x > 1));
+        const bitinfos = nbits.map(x => bits.get(x));
+        if (!bitinfos.every(x => typeof x == 'object'))
+            continue; // ignore not fully driven ports
+        // complex sources should be already handled!
+        assert(bitinfos.every(info => info.id == bitinfos[0].id &&
+                                      info.port == bitinfos[0].port));
+        const cconn = devnets.get(bitinfos[0].id).get(bitinfos[0].port);
+        const dname = gen_name();
+        const dev = {
+            type: '$busslice',
+            slice: {
+                first: bitinfos[0].num,
+                count: bitinfos.length,
+                total: cconn.length
+            }
+        };
+        add_net_source(nbits, dname, 'out');
+        add_net_target(cconn, dname, 'in');
+        mout.devices[dname] = dev;
+    }
+    // Generate connections between devices
+    for (const [nbits, net] of nets.entries()) {
+        if (net.source === undefined) {
+            console.warn('Undriven net: ' + nbits);
+            continue;
+        }
         for (const target in net.targets)
             mout.connectors.push({to: net.targets[target], from: net.source});
     }
