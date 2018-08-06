@@ -18,8 +18,7 @@ const header = `<!doctype html>
 
 function module_deps(data) {
     const out = [];
-    for (const name in data.modules) {
-        const mod = data.modules[name];
+    for (const [name, mod] of Object.entries(data.modules)) {
         out.push([name, 1/0]);
         for (const cname in mod.cells) {
             const cell = mod.cells[cname];
@@ -36,8 +35,7 @@ function order_ports(data) {
     const out = {};
     ['$and', '$or', '$xor', '$xnor'].forEach((nm) => out[nm] = binmap);
     ['$not'].forEach((nm) => out[nm] = unmap);
-    for (const name in data.modules) {
-        const mod = data.modules[name];
+    for (const [name, mod] of Object.entries(data.modules)) {
         const portmap = {};
         const ins = [], outs = [];
         for (const pname in mod.ports) {
@@ -49,107 +47,103 @@ function order_ports(data) {
 }
 
 function yosys_to_simcir(data, portmaps) {
-    const typemap = {};
     const out = {};
-    for (const name in data.modules) {
-        let n = 0;
-        function gen_name() {
-            return 'dev' + n++;
-        }
-        const nets = new HashMap();
-        function get_net(k) {
-            if (!nets.has(k))
-                nets.set(k, {source: undefined, targets: []});
-            return nets.get(k);
-        }
-        function add_net_source(k, d, p) {
-            const net = get_net(k);
-            assert(net.source === undefined);
-            net.source = { id: d, port: p };
-        }
-        function add_net_target(k, d, p) {
-            const net = get_net(k);
-            net.targets.push({ id: d, port: p });
-        }
-        const mod = data.modules[name];
-        const mout = {
-            devices: {},
-            connectors: []
-        }
-        out[name] = mout;
-        for (const pname in mod.ports) {
-            const port = mod.ports[pname];
-            const dname = gen_name();
-            let dev = {
-                label: pname,
-                net: pname,
-                order: n,
-                bits: port.bits.length
-            };
-            switch (port.direction) {
-                case 'input':
-                    dev.type = '$input';
-                    add_net_source(port.bits, dname, 'out');
-                    break;
-                case 'output':
-                    dev.type = '$output';
-                    add_net_target(port.bits, dname, 'in');
-                    break;
-                default: throw Error('Invalid port direction: ' + port.direction);
-            }
-            mout.devices[dname] = dev;
-        }
-        for (const cname in mod.cells) {
-            const cell = mod.cells[cname];
-            const portmap = portmaps[cell.type];
-            const dname = gen_name();
-            let dev = {
-                label: cname
-            };
-            if (cell.type in typemap)
-                dev.type = typemap[cell.type];
-            else
-                dev.type = cell.type;
-            switch (cell.type) {
-                case '$not':
-                    assert(cell.connections.A.length == cell.connections.Y.length);
-                    assert(cell.port_directions.A == 'input');
-                    assert(cell.port_directions.Y == 'output');
-                    dev.bits = cell.connections.Y.length;
-                    break;
-                case '$and': case '$or': case '$xor': case '$xnor':
-                    assert(cell.connections.A.length == cell.connections.Y.length);
-                    assert(cell.connections.B.length == cell.connections.Y.length);
-                    assert(cell.port_directions.A == 'input');
-                    assert(cell.port_directions.B == 'input');
-                    assert(cell.port_directions.Y == 'output');
-                    dev.bits = cell.connections.Y.length;
-                    break;
-                default:
-                    //throw Error('Invalid cell type: ' + cell.type);
-            }
-            for (const pname in cell.port_directions) {
-                const pdir = cell.port_directions[pname];
-                const pconn = cell.connections[pname];
-                switch (pdir) {
-                    case 'input':
-                        add_net_target(pconn, dname, portmap[pname]);
-                        break;
-                    case 'output':
-                        add_net_source(pconn, dname, portmap[pname]);
-                        break;
-                    default:
-                        throw Error('Invalid port direction: ' + pdir);
-                }
-            }
-            mout.devices[dname] = dev;
-        }
-        for (const net of nets.values()) {
-            for (const target in net.targets)
-                mout.connectors.push({to: net.targets[target], from: net.source});
-        }
+    for (const [name, mod] of Object.entries(data.modules)) {
+        out[name] = yosys_to_simcir_mod(mod);
     }
     return out
+}
+
+function yosys_to_simcir_mod(mod) {
+    let n = 0;
+    function gen_name() {
+        return 'dev' + n++;
+    }
+    const nets = new HashMap();
+    function get_net(k) {
+        if (!nets.has(k))
+            nets.set(k, {source: undefined, targets: []});
+        return nets.get(k);
+    }
+    function add_net_source(k, d, p) {
+        const net = get_net(k);
+        assert(net.source === undefined);
+        net.source = { id: d, port: p };
+    }
+    function add_net_target(k, d, p) {
+        const net = get_net(k);
+        net.targets.push({ id: d, port: p });
+    }
+    const mout = {
+        devices: {},
+        connectors: []
+    }
+    for (const [pname, port] of Object.entries(mod.ports)) {
+        const dname = gen_name();
+        let dev = {
+            label: pname,
+            net: pname,
+            order: n,
+            bits: port.bits.length
+        };
+        switch (port.direction) {
+            case 'input':
+                dev.type = '$input';
+                add_net_source(port.bits, dname, 'out');
+                break;
+            case 'output':
+                dev.type = '$output';
+                add_net_target(port.bits, dname, 'in');
+                break;
+            default: throw Error('Invalid port direction: ' + port.direction);
+        }
+        mout.devices[dname] = dev;
+    }
+    for (const [cname, cell] of Object.entries(mod.cells)) {
+        const portmap = portmaps[cell.type];
+        const dname = gen_name();
+        let dev = {
+            label: cname
+        };
+        dev.type = cell.type;
+        switch (cell.type) {
+            case '$not':
+                assert(cell.connections.A.length == cell.connections.Y.length);
+                assert(cell.port_directions.A == 'input');
+                assert(cell.port_directions.Y == 'output');
+                dev.bits = cell.connections.Y.length;
+                break;
+            case '$and': case '$or': case '$xor': case '$xnor':
+                assert(cell.connections.A.length == cell.connections.Y.length);
+                assert(cell.connections.B.length == cell.connections.Y.length);
+                assert(cell.port_directions.A == 'input');
+                assert(cell.port_directions.B == 'input');
+                assert(cell.port_directions.Y == 'output');
+                dev.bits = cell.connections.Y.length;
+                break;
+            default:
+                //throw Error('Invalid cell type: ' + cell.type);
+        }
+        for (const [pname, pdir] of Object.entries(cell.port_directions)) {
+            const pconn = cell.connections[pname];
+            switch (pdir) {
+                case 'input':
+                    add_net_target(pconn, dname, portmap[pname]);
+                    break;
+                case 'output':
+                    add_net_source(pconn, dname, portmap[pname]);
+                    break;
+                default:
+                    throw Error('Invalid port direction: ' + pdir);
+            }
+        }
+        mout.devices[dname] = dev;
+    }
+    for (const net of nets.values()) {
+        for (const target in net.targets)
+            mout.connectors.push({to: net.targets[target], from: net.source});
+    }
+    return mout;
 }
 
 function layout_circuit(circ) {
@@ -202,8 +196,7 @@ let toporder = topsort(module_deps(obj));
 toporder.pop();
 let toplevel = toporder.pop();
 let output = out[toplevel];
-for (const name in output.devices) {
-    const dev = output.devices[name];
+for (const [name, dev] of Object.entries(output.devices)) {
     if (dev.type == '$input')
         dev.type = dev.bits == 1 ? '$button' : '$numentry';
     if (dev.type == '$output')
