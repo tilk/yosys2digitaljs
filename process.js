@@ -99,11 +99,11 @@ function yosys_to_simcir_mod(mod) {
         };
         switch (port.direction) {
             case 'input':
-                dev.type = '$input';
+                dev.celltype = '$input';
                 add_net_source(port.bits, dname, 'out', true);
                 break;
             case 'output':
-                dev.type = '$output';
+                dev.celltype = '$output';
                 add_net_target(port.bits, dname, 'in');
                 break;
             default: throw Error('Invalid port direction: ' + port.direction);
@@ -117,7 +117,7 @@ function yosys_to_simcir_mod(mod) {
         const dev = {
             label: cname
         };
-        dev.type = cell.type;
+        dev.celltype = cell.type;
         function match_port(con, sig, sz) {
             if (con.length > sz)
                 con.splice(sz, con.length - sz);
@@ -189,7 +189,7 @@ function yosys_to_simcir_mod(mod) {
         if (groups.length == 1) continue;
         const dname = gen_name();
         const dev = {
-            type: '$busgroup',
+            celltype: '$busgroup',
             groups: groups.map(g => g.length)
         };
         add_net_source(nbits, dname, 'out');
@@ -207,7 +207,7 @@ function yosys_to_simcir_mod(mod) {
         const val = nbits.map(x => x == '1' ? 1 : x == '0' ? -1 : 0);
         const dev = {
 //            label: String(val), // TODO
-            type: '$constant',
+            celltype: '$constant',
             constant: val
         };
         add_net_source(nbits, dname, 'out');
@@ -227,7 +227,7 @@ function yosys_to_simcir_mod(mod) {
         const cconn = devnets.get(bitinfos[0].id).get(bitinfos[0].port);
         const dname = gen_name();
         const dev = {
-            type: '$busslice',
+            celltype: '$busslice',
             slice: {
                 first: bitinfos[0].num,
                 count: bitinfos.length,
@@ -301,10 +301,10 @@ toporder.pop();
 let toplevel = toporder.pop();
 let output = out[toplevel];
 for (const [name, dev] of Object.entries(output.devices)) {
-    if (dev.type == '$input')
-        dev.type = dev.bits == 1 ? '$button' : '$numentry';
-    if (dev.type == '$output')
-        dev.type = dev.bits == 1 ? '$lamp' : '$numdisplay';
+    if (dev.celltype == '$input')
+        dev.celltype = dev.bits == 1 ? '$button' : '$numentry';
+    if (dev.celltype == '$output')
+        dev.celltype = dev.bits == 1 ? '$lamp' : '$numdisplay';
 }
 output.subcircuits = {};
 for (const x of toporder) output.subcircuits[x] = out[x];
