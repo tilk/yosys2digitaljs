@@ -124,8 +124,15 @@ function yosys_to_simcir_mod(mod) {
             if (con.length > sz)
                 con.splice(sz, con.length - sz);
             else if (con.length < sz) {
+                const ccon = con.slice(0);
                 const pad = sig ? con.slice(-1)[0] : '0';
                 con.splice(con.length, 0, ...Array(sz - con.length).fill(pad));
+                const extname = add_device({
+                    celltype: sig ? '$signextend' : '$zeroextend',
+                    extend: { input: ccon.length, output: con.length }
+                });
+                add_net_target(ccon, extname, 'in');
+                add_net_source(con, extname, 'out');
             }
         }
         switch (cell.type) {
