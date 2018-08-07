@@ -34,7 +34,8 @@ function order_ports(data) {
     const binmap = {A: 'in1', B: 'in2', Y: 'out'};
     const out = {};
     ['$and', '$or', '$xor', '$xnor'].forEach((nm) => out[nm] = binmap);
-    ['$not'].forEach((nm) => out[nm] = unmap);
+    ['$not', '$neg', '$pos', '$reduce_and', '$reduce_or', '$reduce_xor',
+     '$reduce_xnor', '$reduce_bool', '$logic_not'].forEach((nm) => out[nm] = unmap);
     for (const [name, mod] of Object.entries(data.modules)) {
         const portmap = {};
         const ins = [], outs = [];
@@ -136,7 +137,7 @@ function yosys_to_simcir_mod(mod) {
             }
         }
         switch (cell.type) {
-            case '$not':
+            case '$not': case '$neg': case '$pos':
                 assert(cell.connections.A.length == cell.parameters.A_WIDTH);
                 assert(cell.connections.Y.length == cell.parameters.Y_WIDTH);
                 assert(cell.port_directions.A == 'input');
