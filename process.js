@@ -56,6 +56,9 @@ function yosys_to_simcir(data, portmaps) {
 }
 
 function yosys_to_simcir_mod(mod) {
+    function constbit(bit) {
+        return bit == '0' || bit == '1' || bit == 'x';
+    }
     const nets = new HashMap();
     const bits = new Map();
     const devnets = new Map();
@@ -93,6 +96,16 @@ function yosys_to_simcir_mod(mod) {
         const dname = gen_name();
         mout.devices[dname] = dev;
         return dname;
+    }
+    function add_busgroup(nbits, groups) {
+        const dname = add_device({
+            celltype: '$busgroup',
+            groups: groups.map(g => g.length)
+        });
+        add_net_source(nbits, dname, 'out');
+        for (const [gn, group] of groups.entries()) {
+            add_net_target(group, dname, 'in' + gn);
+        }
     }
     // Add inputs/outputs
     for (const [pname, port] of Object.entries(mod.ports)) {
@@ -181,7 +194,7 @@ function yosys_to_simcir_mod(mod) {
         let pbitinfo = undefined;
         for (const bit of nbits) {
             let bitinfo = bits.get(bit);
-            if (bitinfo == undefined && (bit == '0' || bit == '1' || bit == 'x'))
+            if (bitinfo == undefined && constbit(bit))
                 bitinfo = 'const';
             if (groups.slice(-1)[0].length > 0 && 
                    (typeof bitinfo != typeof pbitinfo ||
@@ -196,19 +209,24 @@ function yosys_to_simcir_mod(mod) {
             pbitinfo = bitinfo;
         }
         if (groups.length == 1) continue;
-        const dname = add_device({
-            celltype: '$busgroup',
-            groups: groups.map(g => g.length)
-        });
-        add_net_source(nbits, dname, 'out');
-        for (const [gn, group] of groups.entries()) {
-            add_net_target(group, dname, 'in' + gn);
-        }
+        if (groups.slice(-1)[0].every(x => x == '0')) {
+            // infer zero-extend
+            const ilen = nbits.length - groups.slice(-1)[0].length;
+            const dname = add_device({
+                celltype: '$zeroextend',
+                extend: { output: nbits.length, input: ilen }
+            });
+            const zbits = nbits.slice(0, ilen);
+            add_net_source(nbits, dname, 'out');
+            add_net_target(zbits, dname, 'in');
+            if (groups.length > 2)
+                add_busgroup(zbits, groups.slice(0, groups.length - 1));
+        } else add_busgroup(nbits, groups);
     }
     // Add constants
     for (const [nbits, net] of nets.entries()) {
         if (net.source !== undefined) continue;
-        if (!nbits.every(x => x == '0' || x == '1' || x == 'x'))
+        if (!nbits.every(constbit))
             continue;
         const val = nbits.map(x => x == '1' ? 1 : x == '0' ? -1 : 0);
         const dname = add_device({
