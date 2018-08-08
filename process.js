@@ -7,6 +7,13 @@ const fs = require('fs');
 const dagre = require('dagre');
 const HashMap = require('hashmap');
 
+const unary_gates = new Set([
+    '$not', '$neg', '$pos', '$reduce_and', '$reduce_or', '$reduce_xor',
+    '$reduce_xnor', '$reduce_bool', '$logic_not']);
+const binary_gates = new Set([
+    '$and', '$or', '$xor', '$xnor',
+    '$add', '$sub', '$mul', '$div', '$mod', '$pow']);
+
 const header = `<!doctype html>
 <html>
   <head>
@@ -33,10 +40,8 @@ function order_ports(data) {
     const unmap = {A: 'in', Y: 'out'};
     const binmap = {A: 'in1', B: 'in2', Y: 'out'};
     const out = {};
-    ['$and', '$or', '$xor', '$xnor',
-     '$add', '$sub', '$mul', '$div', '$mod', '$pow'].forEach((nm) => out[nm] = binmap);
-    ['$not', '$neg', '$pos', '$reduce_and', '$reduce_or', '$reduce_xor',
-     '$reduce_xnor', '$reduce_bool', '$logic_not'].forEach((nm) => out[nm] = unmap);
+    binary_gates.forEach((nm) => out[nm] = binmap);
+    unary_gates.forEach((nm) => out[nm] = unmap);
     for (const [name, mod] of Object.entries(data.modules)) {
         const portmap = {};
         const ins = [], outs = [];
@@ -162,12 +167,22 @@ function yosys_to_simcir_mod(mod) {
                 add_net_target(con, extname, 'in');
             }
         }
-        switch (cell.type) {
-            case '$neg': case '$pos':
+        if (unary_gates.has(cell.type)) {
                 assert(cell.connections.A.length == cell.parameters.A_WIDTH);
                 assert(cell.connections.Y.length == cell.parameters.Y_WIDTH);
                 assert(cell.port_directions.A == 'input');
                 assert(cell.port_directions.Y == 'output');
+        }
+        if (binary_gates.has(cell.type)) {
+                assert(cell.connections.A.length == cell.parameters.A_WIDTH);
+                assert(cell.connections.B.length == cell.parameters.B_WIDTH);
+                assert(cell.connections.Y.length == cell.parameters.Y_WIDTH);
+                assert(cell.port_directions.A == 'input');
+                assert(cell.port_directions.B == 'input');
+                assert(cell.port_directions.Y == 'output');
+        }
+        switch (cell.type) {
+            case '$neg': case '$pos':
                 dev.bits = {
                     in: cell.connections.A.length,
                     out: cell.connections.Y.length
@@ -175,20 +190,10 @@ function yosys_to_simcir_mod(mod) {
                 dev.signed = Boolean(cell.parameters.A_SIGNED);
                 break;
             case '$not':
-                assert(cell.connections.A.length == cell.parameters.A_WIDTH);
-                assert(cell.connections.Y.length == cell.parameters.Y_WIDTH);
-                assert(cell.port_directions.A == 'input');
-                assert(cell.port_directions.Y == 'output');
                 match_port(cell.connections.A, cell.parameters.A_SIGNED, cell.connections.Y.length);
                 dev.bits = cell.connections.Y.length;
                 break;
             case '$add': case '$sub': case '$mul': case '$div': case '$mod': case '$pow':
-                assert(cell.connections.A.length == cell.parameters.A_WIDTH);
-                assert(cell.connections.B.length == cell.parameters.B_WIDTH);
-                assert(cell.connections.Y.length == cell.parameters.Y_WIDTH);
-                assert(cell.port_directions.A == 'input');
-                assert(cell.port_directions.B == 'input');
-                assert(cell.port_directions.Y == 'output');
                 dev.bits = {
                     in1: cell.connections.A.length,
                     in2: cell.connections.B.length,
@@ -200,21 +205,11 @@ function yosys_to_simcir_mod(mod) {
                 }
                 break;
             case '$and': case '$or': case '$xor': case '$xnor':
-                assert(cell.connections.A.length == cell.parameters.A_WIDTH);
-                assert(cell.connections.B.length == cell.parameters.B_WIDTH);
-                assert(cell.connections.Y.length == cell.parameters.Y_WIDTH);
-                assert(cell.port_directions.A == 'input');
-                assert(cell.port_directions.B == 'input');
-                assert(cell.port_directions.Y == 'output');
                 match_port(cell.connections.A, cell.parameters.A_SIGNED, cell.connections.Y.length);
                 match_port(cell.connections.B, cell.parameters.B_SIGNED, cell.connections.Y.length);
                 dev.bits = cell.connections.Y.length;
                 break;
             case '$reduce_and': case '$reduce_or': case '$reduce_xor': case '$reduce_xnor':
-                assert(cell.connections.A.length == cell.parameters.A_WIDTH);
-                assert(cell.connections.Y.length == cell.parameters.Y_WIDTH);
-                assert(cell.port_directions.A == 'input');
-                assert(cell.port_directions.Y == 'output');
                 dev.bits = cell.connections.A.length;
                 zero_extend_output(cell.connections.Y);
                 break;
