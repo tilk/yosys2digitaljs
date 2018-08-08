@@ -52,7 +52,9 @@ function module_deps(data) {
 function order_ports(data) {
     const unmap = {A: 'in', Y: 'out'};
     const binmap = {A: 'in1', B: 'in2', Y: 'out'};
-    const out = {};
+    const out = {
+        '$mux': {A: 'in0', B: 'in1', S: 'sel', Y: 'out'}
+    };
     binary_gates.forEach((nm) => out[nm] = binmap);
     unary_gates.forEach((nm) => out[nm] = unmap);
     for (const [name, mod] of Object.entries(data.modules)) {
@@ -274,6 +276,15 @@ function yosys_to_simcir_mod(mod) {
                 zero_extend_output(cell.connections.Y);
                 break;
             }
+            case '$mux':
+                assert(cell.connections.A.length == cell.parameters.WIDTH);
+                assert(cell.connections.B.length == cell.parameters.WIDTH);
+                assert(cell.connections.Y.length == cell.parameters.WIDTH);
+                dev.bits = {
+                    in: cell.parameters.WIDTH,
+                    sel: 1
+                };
+                break;
             default:
                 //throw Error('Invalid cell type: ' + cell.type);
         }
