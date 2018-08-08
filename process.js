@@ -13,11 +13,16 @@ const unary_gates = new Set([
 const binary_gates = new Set([
     '$and', '$or', '$xor', '$xnor',
     '$add', '$sub', '$mul', '$div', '$mod', '$pow',
-    '$lt', '$le', '$eq', '$ne', '$ge', '$gt', '$eqx', '$nex']);
+    '$lt', '$le', '$eq', '$ne', '$ge', '$gt', '$eqx', '$nex',
+    '$shl', '$shr', '$sshl', '$sshr', '$shift', '$shiftx']);
 const gate_subst = new Map([
     ['$reduce_bool', '$reduce_or'],
     ['$eqx', '$eq'],
-    ['$nex', '$ne']]);
+    ['$nex', '$ne'],
+    ['$sshl', '$shl'],
+    ['$sshr', '$shr'],
+    ['$shift', '$shr'],
+    ['$shiftx', '$shr']]);
 
 const header = `<!doctype html>
 <html>
@@ -142,7 +147,7 @@ function yosys_to_simcir_mod(mod) {
         const portmap = portmaps[cell.type];
         const dev = {
             label: cname,
-            celltype: cell.type
+            celltype: gate_subst.has(cell.type) ? gate_subst.get(cell.type) : cell.type
         };
         const dname = add_device(dev);
         function match_port(con, sig, sz) {
@@ -172,8 +177,6 @@ function yosys_to_simcir_mod(mod) {
                 add_net_target(con, extname, 'in');
             }
         }
-        if (gate_subst.has(cell.type))
-            cell_type = gate_subst.get(cell.type);
         if (unary_gates.has(cell.type)) {
                 assert(cell.connections.A.length == cell.parameters.A_WIDTH);
                 assert(cell.connections.Y.length == cell.parameters.Y_WIDTH);
@@ -222,6 +225,7 @@ function yosys_to_simcir_mod(mod) {
                 zero_extend_output(cell.connections.Y);
                 break;
             case '$eq': case '$ne': case '$lt': case '$le': case 'gt': case 'ge':
+            case '$eqx': case '$nex':
                 dev.bits = {
                     in1: cell.connections.A.length,
                     in2: cell.connections.B.length
@@ -229,8 +233,22 @@ function yosys_to_simcir_mod(mod) {
                 dev.signed = {
                     in1: Boolean(cell.parameters.A_SIGNED),
                     in2: Boolean(cell.parameters.B_SIGNED)
-                }
+                };
                 zero_extend_output(cell.connections.Y);
+                break;
+            case '$shl': case '$shr': case '$sshl': case '$sshr':
+            case '$shift': case '$shiftx':
+                dev.bits = {
+                    in1: cell.connections.A.length,
+                    in2: cell.connections.B.length,
+                    out: cell.connections.Y.length
+                };
+                dev.signed = {
+                    in1: Boolean(cell.parameters.A_SIGNED),
+                    in2: Boolean(cell.parameters.B_SIGNED && ['$shift', '$shiftx'].includes(cell.type)),
+                    out: Boolean(cell.parameters.A_SIGNED && ['$sshl', '$sshr'].includes(cell.type))
+                };
+                dev.fillx = cell.type == '$shiftx';
                 break;
             default:
                 //throw Error('Invalid cell type: ' + cell.type);
