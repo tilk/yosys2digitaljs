@@ -14,7 +14,8 @@ const binary_gates = new Set([
     '$and', '$or', '$xor', '$xnor',
     '$add', '$sub', '$mul', '$div', '$mod', '$pow',
     '$lt', '$le', '$eq', '$ne', '$ge', '$gt', '$eqx', '$nex',
-    '$shl', '$shr', '$sshl', '$sshr', '$shift', '$shiftx']);
+    '$shl', '$shr', '$sshl', '$sshr', '$shift', '$shiftx',
+    '$logic_and', '$logic_or']);
 const gate_subst = new Map([
     ['$reduce_bool', '$reduce_or'],
     ['$eqx', '$eq'],
@@ -22,7 +23,9 @@ const gate_subst = new Map([
     ['$sshl', '$shl'],
     ['$sshr', '$shr'],
     ['$shift', '$shr'],
-    ['$shiftx', '$shr']]);
+    ['$shiftx', '$shr'],
+    ['$logic_and', '$and'],
+    ['$logic_or', '$or']]);
 
 const header = `<!doctype html>
 <html>
@@ -78,11 +81,14 @@ function yosys_to_simcir_mod(mod) {
     const nets = new HashMap();
     const bits = new Map();
     const devnets = new Map();
-    let n = 0;
+    let n = 0, pn = 0;
     function gen_name() {
-        const nm =  'dev' + n++;
+        const nm = 'dev' + n++;
         devnets.set(nm, new Map());
         return nm;
+    }
+    function gen_bitname() {
+        return 'bit' + pn++;
     }
     function get_net(k) {
         // create net if does not exist yet
@@ -250,6 +256,24 @@ function yosys_to_simcir_mod(mod) {
                 };
                 dev.fillx = cell.type == '$shiftx';
                 break;
+            case '$logic_and': case '$logic_or': {
+                function reduce_input(con) {
+                    const ccon = con.slice();
+                    con.splice(0, con.length, gen_bitname());
+                    const extname = add_device({
+                        celltype: '$reduce_or',
+                        bits: ccon.length
+                    });
+                    add_net_source(con, extname, 'out');
+                    add_net_target(ccon, extname, 'in');
+                }
+                if (cell.connections.A.length > 1)
+                    reduce_input(cell.connections.A);
+                if (cell.connections.B.length > 1)
+                    reduce_input(cell.connections.B);
+                zero_extend_output(cell.connections.Y);
+                break;
+            }
             default:
                 //throw Error('Invalid cell type: ' + cell.type);
         }
