@@ -12,7 +12,12 @@ const unary_gates = new Set([
     '$reduce_xnor', '$reduce_bool', '$logic_not']);
 const binary_gates = new Set([
     '$and', '$or', '$xor', '$xnor',
-    '$add', '$sub', '$mul', '$div', '$mod', '$pow']);
+    '$add', '$sub', '$mul', '$div', '$mod', '$pow',
+    '$lt', '$le', '$eq', '$ne', '$ge', '$gt', '$eqx', '$nex']);
+const gate_subst = new Map([
+    ['$reduce_bool', '$reduce_or'],
+    ['$eqx', '$eq'],
+    ['$nex', '$ne']]);
 
 const header = `<!doctype html>
 <html>
@@ -167,6 +172,8 @@ function yosys_to_simcir_mod(mod) {
                 add_net_target(con, extname, 'in');
             }
         }
+        if (gate_subst.has(cell.type))
+            cell_type = gate_subst.get(cell.type);
         if (unary_gates.has(cell.type)) {
                 assert(cell.connections.A.length == cell.parameters.A_WIDTH);
                 assert(cell.connections.Y.length == cell.parameters.Y_WIDTH);
@@ -212,6 +219,17 @@ function yosys_to_simcir_mod(mod) {
             case '$reduce_and': case '$reduce_or': case '$reduce_xor': case '$reduce_xnor':
             case '$reduce_bool': case '$logic_not':
                 dev.bits = cell.connections.A.length;
+                zero_extend_output(cell.connections.Y);
+                break;
+            case '$eq': case '$ne': case '$lt': case '$le': case 'gt': case 'ge':
+                dev.bits = {
+                    in1: cell.connections.A.length,
+                    in2: cell.connections.B.length
+                };
+                dev.signed = {
+                    in1: Boolean(cell.parameters.A_SIGNED),
+                    in2: Boolean(cell.parameters.B_SIGNED)
+                }
                 zero_extend_output(cell.connections.Y);
                 break;
             default:
