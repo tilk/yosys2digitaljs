@@ -137,9 +137,9 @@ function yosys_to_simcir_mod(mod) {
         const dname = add_device(dev);
         function match_port(con, sig, sz) {
             if (con.length > sz)
-                con.splice(sz, con.length - sz);
+                con.splice(sz);
             else if (con.length < sz) {
-                const ccon = con.slice(0);
+                const ccon = con.slice();
                 const pad = sig ? con.slice(-1)[0] : '0';
                 con.splice(con.length, 0, ...Array(sz - con.length).fill(pad));
                 const extname = add_device({
@@ -148,6 +148,18 @@ function yosys_to_simcir_mod(mod) {
                 });
                 add_net_target(ccon, extname, 'in');
                 add_net_source(con, extname, 'out');
+            }
+        }
+        function zero_extend_output(con) {
+            if (con.length > 1) {
+                const ccon = con.slice();
+                con.splice(1);
+                const extname = add_device({
+                    celltype: '$zeroextend',
+                    extend: { input: con.length, output: ccon.length }
+                });
+                add_net_source(ccon, extname, 'out');
+                add_net_target(con, extname, 'in');
             }
         }
         switch (cell.type) {
@@ -197,6 +209,14 @@ function yosys_to_simcir_mod(mod) {
                 match_port(cell.connections.A, cell.parameters.A_SIGNED, cell.connections.Y.length);
                 match_port(cell.connections.B, cell.parameters.B_SIGNED, cell.connections.Y.length);
                 dev.bits = cell.connections.Y.length;
+                break;
+            case '$reduce_and': case '$reduce_or': case '$reduce_xor': case '$reduce_xnor':
+                assert(cell.connections.A.length == cell.parameters.A_WIDTH);
+                assert(cell.connections.Y.length == cell.parameters.Y_WIDTH);
+                assert(cell.port_directions.A == 'input');
+                assert(cell.port_directions.Y == 'output');
+                dev.bits = cell.connections.A.length;
+                zero_extend_output(cell.connections.Y);
                 break;
             default:
                 //throw Error('Invalid cell type: ' + cell.type);
