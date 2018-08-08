@@ -210,6 +210,7 @@ function yosys_to_simcir_mod(mod) {
                 dev.bits = cell.connections.Y.length;
                 break;
             case '$reduce_and': case '$reduce_or': case '$reduce_xor': case '$reduce_xnor':
+            case '$reduce_bool': case '$logic_not':
                 dev.bits = cell.connections.A.length;
                 zero_extend_output(cell.connections.Y);
                 break;
