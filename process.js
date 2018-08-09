@@ -36,6 +36,17 @@ const header = `<!doctype html>
   </head>
   <body>`;
 
+function chunkArray(a, chunk_size){
+    let results = [];
+	let ca = a.splice();
+    
+    while (ca.length) {
+        results.push(ca.splice(0, chunk_size));
+    }
+    
+    return results;
+}
+
 function module_deps(data) {
     const out = [];
     for (const [name, mod] of Object.entries(data.modules)) {
@@ -148,10 +159,10 @@ function yosys_to_simcir_mod(mod) {
     }
     function connect_pmux(dname, cell) {
         add_net_target(cell.connections.A, dname, 'in0');
-        add_net_target(cell.connections.S, dname, 'sel');
+        add_net_target(cell.connections.S.slice().reverse(), dname, 'sel');
         add_net_source(cell.connections.Y, dname, 'out');
         for (const i of Array(cell.parameters.S_WIDTH).keys()) {
-            const p = i * cell.parameters.WIDTH;
+            const p = (cell.parameters.S_WIDTH-i-1) * cell.parameters.WIDTH;
             add_net_target(cell.connections.B.slice(p, p + cell.parameters.WIDTH),
                 dname, 'in' + (i+1));
         }
