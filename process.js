@@ -131,6 +131,31 @@ function yosys_to_simcir_mod(mod) {
             add_net_target(group, dname, 'in' + gn);
         }
     }
+    function connect_device(dname, cell, portmap) {
+        for (const [pname, pdir] of Object.entries(cell.port_directions)) {
+            const pconn = cell.connections[pname];
+            switch (pdir) {
+                case 'input':
+                    add_net_target(pconn, dname, portmap[pname]);
+                    break;
+                case 'output':
+                    add_net_source(pconn, dname, portmap[pname], true);
+                    break;
+                default:
+                    throw Error('Invalid port direction: ' + pdir);
+            }
+        }
+    }
+    function connect_pmux(dname, cell) {
+        add_net_target(cell.connections.A, dname, 'in0');
+        add_net_target(cell.connections.S, dname, 'sel');
+        add_net_source(cell.connections.Y, dname, 'out');
+        for (const i of Array(cell.parameters.S_WIDTH).keys()) {
+            const p = i * cell.parameters.WIDTH;
+            add_net_target(cell.connections.B.slice(p, p + cell.parameters.WIDTH),
+                dname, 'in' + (i+1));
+        }
+    }
     // Add inputs/outputs
     for (const [pname, port] of Object.entries(mod.ports)) {
         const dname = add_device({
@@ -152,7 +177,6 @@ function yosys_to_simcir_mod(mod) {
     }
     // Add gates
     for (const [cname, cell] of Object.entries(mod.cells)) {
-        const portmap = portmaps[cell.type];
         const dev = {
             label: cname,
             celltype: gate_subst.has(cell.type) ? gate_subst.get(cell.type) : cell.type
@@ -280,27 +304,34 @@ function yosys_to_simcir_mod(mod) {
                 assert(cell.connections.A.length == cell.parameters.WIDTH);
                 assert(cell.connections.B.length == cell.parameters.WIDTH);
                 assert(cell.connections.Y.length == cell.parameters.WIDTH);
+                assert(cell.port_directions.A == 'input');
+                assert(cell.port_directions.B == 'input');
+                assert(cell.port_directions.Y == 'output');
                 dev.bits = {
                     in: cell.parameters.WIDTH,
                     sel: 1
                 };
                 break;
+            case '$pmux':
+                assert(cell.connections.B.length == cell.parameters.WIDTH * cell.parameters.S_WIDTH);
+                assert(cell.connections.A.length == cell.parameters.WIDTH);
+                assert(cell.connections.S.length == cell.parameters.S_WIDTH);
+                assert(cell.connections.Y.length == cell.parameters.WIDTH);
+                assert(cell.port_directions.A == 'input');
+                assert(cell.port_directions.B == 'input');
+                assert(cell.port_directions.S == 'input');
+                assert(cell.port_directions.Y == 'output');
+                dev.bits = {
+                    in: cell.parameters.WIDTH,
+                    sel: cell.parameters.S_WIDTH
+                };
+                break;
             default:
-                //throw Error('Invalid cell type: ' + cell.type);
         }
-        for (const [pname, pdir] of Object.entries(cell.port_directions)) {
-            const pconn = cell.connections[pname];
-            switch (pdir) {
-                case 'input':
-                    add_net_target(pconn, dname, portmap[pname]);
-                    break;
-                case 'output':
-                    add_net_source(pconn, dname, portmap[pname], true);
-                    break;
-                default:
-                    throw Error('Invalid port direction: ' + pdir);
-            }
-        }
+        const portmap = portmaps[cell.type];
+        if (portmap) connect_device(dname, cell, portmap);
+        else if (cell.type == '$pmux') connect_pmux(dname, cell);
+        else throw Error('Invalid cell type: ' + cell.type);
     }
     // Group bits into nets for complex sources
     for (const [nbits, net] of nets.entries()) {
