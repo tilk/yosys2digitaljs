@@ -25,7 +25,10 @@ const gate_subst = new Map([
     ['$shift', '$shr'],
     ['$shiftx', '$shr'],
     ['$logic_and', '$and'],
-    ['$logic_or', '$or']]);
+    ['$logic_or', '$or'],
+    ['$dffe', '$dff'],
+    ['$adff', '$dff'],
+    ['$dlatch', '$dff']]);
 
 const header = `<!doctype html>
 <html>
@@ -64,7 +67,11 @@ function order_ports(data) {
     const unmap = {A: 'in', Y: 'out'};
     const binmap = {A: 'in1', B: 'in2', Y: 'out'};
     const out = {
-        '$mux': {A: 'in0', B: 'in1', S: 'sel', Y: 'out'}
+        '$mux': {A: 'in0', B: 'in1', S: 'sel', Y: 'out'},
+        '$dff': {CLK: 'clk', D: 'in', Q: 'out'},
+        '$dffe': {CLK: 'clk', EN: 'en', D: 'in', Q: 'out'},
+        '$adff': {CLK: 'clk', ARST: 'arst', D: 'in', Q: 'out'},
+        '$dlatch': {EN: 'clk', D: 'in', Q: 'out'},
     };
     binary_gates.forEach((nm) => out[nm] = binmap);
     unary_gates.forEach((nm) => out[nm] = unmap);
@@ -234,6 +241,16 @@ function yosys_to_simcir_mod(mod) {
                 assert(cell.port_directions.B == 'input');
                 assert(cell.port_directions.Y == 'output');
         }
+        if (['$dff', '$dffe', '$adff', '$dlatch'].includes(cell.type)) {
+            assert(cell.connections.D.length == cell.parameters.WIDTH);
+            assert(cell.connections.Q.length == cell.parameters.WIDTH);
+            assert(cell.port_directions.D == 'input');
+            assert(cell.port_directions.Q == 'output');
+            if (cell.type != '$dlatch') {
+                assert(cell.connections.CLK.length == 1);
+                assert(cell.port_directions.CLK == 'input');
+            }
+        }
         switch (cell.type) {
             case '$neg': case '$pos':
                 dev.bits = {
@@ -335,6 +352,39 @@ function yosys_to_simcir_mod(mod) {
                 dev.bits = {
                     in: cell.parameters.WIDTH,
                     sel: cell.parameters.S_WIDTH
+                };
+                break;
+            case '$dff':
+                dev.bits = cell.parameters.WIDTH;
+                dev.polarity = {
+                    clock: Boolean(cell.parameters.CLK_POLARITY)
+                };
+                break;
+            case '$dffe':
+                assert(cell.connections.EN.length == 1);
+                assert(cell.port_directions.EN == 'input');
+                dev.bits = cell.parameters.WIDTH;
+                dev.polarity = {
+                    clock: Boolean(cell.parameters.CLK_POLARITY),
+                    enable: Boolean(cell.parameters.EN_POLARITY)
+                };
+                break;
+            case '$adff':
+                assert(cell.connections.ARST.length == 1);
+                assert(cell.port_directions.ARST == 'input');
+                dev.bits = cell.parameters.WIDTH;
+                dev.polarity = {
+                    clock: Boolean(cell.parameters.CLK_POLARITY),
+                    arst: Boolean(cell.parameters.ARST_POLARITY)
+                };
+                dev.arst_value = Number(cell.parameters.ARST_VALUE);
+                break;
+            case '$dlatch':
+                assert(cell.connections.EN.length == 1);
+                assert(cell.port_directions.EN == 'input');
+                dev.bits = cell.parameters.WIDTH;
+                dev.polarity = {
+                    clock: Boolean(cell.parameters.EN_POLARITY)
                 };
                 break;
             default:
