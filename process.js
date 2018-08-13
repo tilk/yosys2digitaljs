@@ -113,7 +113,7 @@ function yosys_to_simcir_mod(name, mod) {
     function get_net(k) {
         // create net if does not exist yet
         if (!nets.has(k))
-            nets.set(k, {source: undefined, targets: []});
+            nets.set(k, {source: undefined, targets: [], name: undefined});
         return nets.get(k);
     }
     function add_net_source(k, d, p, primary) {
@@ -467,14 +467,27 @@ function yosys_to_simcir_mod(name, mod) {
         add_net_source(nbits, dname, 'out');
         add_net_target(cconn, dname, 'in');
     }
+    // Label nets
+    for (const [nname, data] of Object.entries(mod.netnames)) {
+        if (data.hide_name) continue;
+        const net = nets.get(data.bits);
+        if (!net) continue;
+        net.name = nname;
+    }
     // Generate connections between devices
     for (const [nbits, net] of nets.entries()) {
         if (net.source === undefined) {
             console.warn('Undriven net in ' + name + ': ' + nbits);
             continue;
         }
-        for (const target in net.targets)
-            mout.connectors.push({to: net.targets[target], from: net.source});
+        for (const target in net.targets) {
+            const conn = {
+                to: net.targets[target],
+                from: net.source
+            };
+            if (net.name) conn.name = net.name;
+            mout.connectors.push(conn);
+        }
     }
     return mout;
 }
