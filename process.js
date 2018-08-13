@@ -89,12 +89,12 @@ function order_ports(data) {
 function yosys_to_simcir(data, portmaps) {
     const out = {};
     for (const [name, mod] of Object.entries(data.modules)) {
-        out[name] = yosys_to_simcir_mod(mod);
+        out[name] = yosys_to_simcir_mod(name, mod);
     }
     return out
 }
 
-function yosys_to_simcir_mod(mod) {
+function yosys_to_simcir_mod(name, mod) {
     function constbit(bit) {
         return bit == '0' || bit == '1' || bit == 'x';
     }
@@ -470,7 +470,7 @@ function yosys_to_simcir_mod(mod) {
     // Generate connections between devices
     for (const [nbits, net] of nets.entries()) {
         if (net.source === undefined) {
-            console.warn('Undriven net: ' + nbits);
+            console.warn('Undriven net in ' + name + ': ' + nbits);
             continue;
         }
         for (const target in net.targets)
