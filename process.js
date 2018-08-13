@@ -167,7 +167,7 @@ function yosys_to_simcir_mod(mod) {
     function connect_pmux(dname, cell) {
         add_net_target(cell.connections.A, dname, 'in0');
         add_net_target(cell.connections.S.slice().reverse(), dname, 'sel');
-        add_net_source(cell.connections.Y, dname, 'out');
+        add_net_source(cell.connections.Y, dname, 'out', true);
         for (const i of Array(cell.parameters.S_WIDTH).keys()) {
             const p = (cell.parameters.S_WIDTH-i-1) * cell.parameters.WIDTH;
             add_net_target(cell.connections.B.slice(p, p + cell.parameters.WIDTH),
