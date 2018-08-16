@@ -6,6 +6,13 @@ const topsort = require('topsort');
 const fs = require('fs');
 const dagre = require('dagre');
 const HashMap = require('hashmap');
+const bigInt = require('big-integer');
+
+const ltr2bit = {
+    '1': 1,
+    'x': 0,
+    '0': -1
+};
 
 const unary_gates = new Set([
     '$not', '$neg', '$pos', '$reduce_and', '$reduce_or', '$reduce_xor',
@@ -84,6 +91,18 @@ function order_ports(data) {
         out[name] = portmap;
     }
     return out;
+}
+
+function decode_json_bigint(param) {
+    if (typeof param == 'string')
+        return bigInt(param, 2)
+    else if (typeof param == 'number')
+        return bigInt(param)
+    else assert(false);
+}
+
+function decode_json_bigint_as_array(param) {
+    return decode_json_bigint(param).toArray(2).value;
 }
 
 function yosys_to_simcir(data, portmaps) {
@@ -172,6 +191,30 @@ function yosys_to_simcir_mod(name, mod) {
             const p = (cell.parameters.S_WIDTH-i-1) * cell.parameters.WIDTH;
             add_net_target(cell.connections.B.slice(p, p + cell.parameters.WIDTH),
                 dname, 'in' + (i+1));
+        }
+    }
+    function connect_mem(dname, cell, dev) {
+        for (const [k, port] of dev.rdports.entries()) {
+            const portname = "rd" + k;
+            add_net_target(cell.connections.RD_ADDR.slice(dev.abits * k, dev.abits * (k+1)),
+                dname, portname + "addr");
+            add_net_source(cell.connections.RD_DATA.slice(dev.bits * k, dev.bits * (k+1)),
+                dname, portname + "data");
+            if ('clock_polarity' in port)
+                add_net_target([cell.connections.RD_CLK[k]], dname, portname + "clk");
+            if ('enable_polarity' in port)
+                add_net_target([cell.connections.RD_EN[k]], dname, portname + "en");
+        }
+        for (const [k, port] of dev.wrports.entries()) {
+            const portname = "wr" + k;
+            add_net_target(cell.connections.WR_ADDR.slice(dev.abits * k, dev.abits * (k+1)),
+                dname, portname + "addr");
+            add_net_target(cell.connections.WR_DATA.slice(dev.bits * k, dev.bits * (k+1)),
+                dname, portname + "data");
+            if ('clock_polarity' in port)
+                add_net_target([cell.connections.WR_CLK[k]], dname, portname + "clk");
+            if ('enable_polarity' in port)
+                add_net_target([cell.connections.WR_EN[k]], dname, portname + "en");
         }
     }
     // Add inputs/outputs
@@ -387,11 +430,68 @@ function yosys_to_simcir_mod(name, mod) {
                     clock: Boolean(cell.parameters.EN_POLARITY)
                 };
                 break;
+            case '$mem': {
+                assert(cell.connections.RD_EN.length == cell.parameters.RD_PORTS);
+                assert(cell.connections.RD_CLK.length == cell.parameters.RD_PORTS);
+                assert(cell.connections.RD_DATA.length == cell.parameters.RD_PORTS * cell.parameters.WIDTH);
+                assert(cell.connections.RD_ADDR.length == cell.parameters.RD_PORTS * cell.parameters.ABITS);
+                assert(cell.connections.WR_EN.length == cell.parameters.WR_PORTS);
+                assert(cell.connections.WR_CLK.length == cell.parameters.WR_PORTS);
+                assert(cell.connections.WR_DATA.length == cell.parameters.WR_PORTS * cell.parameters.WIDTH);
+                assert(cell.connections.WR_ADDR.length == cell.parameters.WR_PORTS * cell.parameters.ABITS);
+                dev.bits = cell.parameters.WIDTH;
+                dev.abits = cell.parameters.ABITS;
+                dev.words = cell.parameters.SIZE;
+                dev.offset = cell.parameters.OFFSET;
+                dev.rdports = [];
+                dev.wrports = [];
+                const rdpol = decode_json_bigint_as_array(cell.parameters.RD_CLK_POLARITY).reverse();
+                const rden  = decode_json_bigint_as_array(cell.parameters.RD_CLK_ENABLE).reverse();
+                const rdtr  = decode_json_bigint_as_array(cell.parameters.RD_TRANSPARENT).reverse();
+                const wrpol = decode_json_bigint_as_array(cell.parameters.WR_CLK_POLARITY).reverse();
+                const wren  = decode_json_bigint_as_array(cell.parameters.WR_CLK_ENABLE).reverse();
+                const init  = typeof(cell.parameters.INIT) == 'number'
+                    ? bigInt(cell.parameters.INIT).toArray(2).value.reverse()
+                    : cell.parameters.INIT.split('').map(x => ltr2bit[x]).reverse();
+                if (cell.parameters.INIT) {
+                    const l = init.slice(-1)[0] == 0 ? 0 : -1;
+                    dev.memdata = [];
+                    for (const k of Array(dev.words).keys()) {
+                        const wrd = init.slice(dev.bits * k, dev.bits * (k+1));
+                        while (wrd.length < dev.bits) wrd.push(l);
+                        dev.memdata.push(wrd);
+                    }
+                }
+                for (const k of Array(cell.parameters.RD_PORTS).keys()) {
+                    const port = {
+                    };
+                    if (rden[k]) {
+                        port.clock_polarity = Boolean(rdpol[k]);
+                        if (cell.connections.RD_EN[k] != '1')
+                            port.enable_polarity = true;
+                    };
+                    if (rdtr[k])
+                        port.transparent = true;
+                    dev.rdports.push(port);
+                }
+                for (const k of Array(cell.parameters.WR_PORTS).keys()) {
+                    const port = {
+                    };
+                    if (wren[k]) {
+                        port.clock_polarity = Boolean(wrpol[k]);
+                        if (cell.connections.WR_EN[k] != '1')
+                            port.enable_polarity = true;
+                    };
+                    dev.rdports.push(port);
+                }
+                break;
+            }
             default:
         }
         const portmap = portmaps[cell.type];
         if (portmap) connect_device(dname, cell, portmap);
         else if (cell.type == '$pmux') connect_pmux(dname, cell);
+        else if (cell.type == '$mem') connect_mem(dname, cell, dev);
         else throw Error('Invalid cell type: ' + cell.type);
     }
     // Group bits into nets for complex sources
