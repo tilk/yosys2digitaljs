@@ -214,7 +214,8 @@ function yosys_to_simcir_mod(name, mod) {
             if ('clock_polarity' in port)
                 add_net_target([cell.connections.WR_CLK[k]], dname, portname + "clk");
             if ('enable_polarity' in port)
-                add_net_target([cell.connections.WR_EN[k]], dname, portname + "en");
+                add_net_target(cell.connections.WR_EN.slice(dev.bits * k, dev.bits * (k+1)),
+                    dname, portname + "en");
         }
     }
     // Add inputs/outputs
@@ -435,7 +436,7 @@ function yosys_to_simcir_mod(name, mod) {
                 assert(cell.connections.RD_CLK.length == cell.parameters.RD_PORTS);
                 assert(cell.connections.RD_DATA.length == cell.parameters.RD_PORTS * cell.parameters.WIDTH);
                 assert(cell.connections.RD_ADDR.length == cell.parameters.RD_PORTS * cell.parameters.ABITS);
-                assert(cell.connections.WR_EN.length == cell.parameters.WR_PORTS);
+                assert(cell.connections.WR_EN.length == cell.parameters.WR_PORTS * cell.parameters.WIDTH);
                 assert(cell.connections.WR_CLK.length == cell.parameters.WR_PORTS);
                 assert(cell.connections.WR_DATA.length == cell.parameters.WR_PORTS * cell.parameters.WIDTH);
                 assert(cell.connections.WR_ADDR.length == cell.parameters.WR_PORTS * cell.parameters.ABITS);
@@ -479,10 +480,11 @@ function yosys_to_simcir_mod(name, mod) {
                     };
                     if (wren[k]) {
                         port.clock_polarity = Boolean(wrpol[k]);
-                        if (cell.connections.WR_EN[k] != '1')
+                        if (cell.connections.WR_EN.slice(dev.bits * k, dev.bits * (k+1))
+                                .some(z => z != '1'))
                             port.enable_polarity = true;
                     };
-                    dev.rdports.push(port);
+                    dev.wrports.push(port);
                 }
                 break;
             }
