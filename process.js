@@ -639,6 +639,10 @@ function layout_circuits(circs) {
     }
 }
 
+if (argv._.length === 0) {
+    console.error('No Verilog files passed!');
+    shell.exit(1);
+}
 const tmpjson = tmp.tmpNameSync({ template: shell.tempdir() + '/tmp-XXXXXX.json' });
 const yosys_result = shell.exec(
     'yosys -p "hierarchy; proc; fsm; memory -nomap" -o "' + tmpjson + '" ' + argv._.join(' '),
