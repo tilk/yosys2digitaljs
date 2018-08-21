@@ -1,6 +1,9 @@
 #!/usr/bin/node
 "use strict";
 
+const argv = require('minimist')(process.argv.slice(2));
+const tmp = require('tmp');
+const shell = require('shelljs');
 const assert = require('assert');
 const topsort = require('topsort');
 const fs = require('fs');
@@ -636,7 +639,17 @@ function layout_circuits(circs) {
     }
 }
 
-let obj = JSON.parse(fs.readFileSync('output.json', 'utf8'));
+const tmpjson = tmp.tmpNameSync({ template: shell.tempdir() + '/tmp-XXXXXX.json' });
+const yosys_result = shell.exec(
+    'yosys -p "hierarchy; proc; fsm; memory -nomap" -o "' + tmpjson + '" ' + argv._.join(' '),
+    {silent: true});
+if (yosys_result.code !== 0) {
+    console.error('Yosys failed! Output follows');
+    console.error(yosys_result.stdout);
+    shell.exit(1);
+}
+let obj = JSON.parse(fs.readFileSync(tmpjson, 'utf8'));
+shell.rm(tmpjson);
 let portmaps = order_ports(obj);
 let out = yosys_to_simcir(obj, portmaps);
 //layout_circuits(out);
@@ -652,8 +665,17 @@ for (const [name, dev] of Object.entries(output.devices)) {
 }
 output.subcircuits = {};
 for (const x of toporder) output.subcircuits[x] = out[x];
-console.log(header);
-console.log('<div id="paper"></div><script>const circuit = new digitaljs.Circuit(');
+if (argv.html) {
+    console.log(header);
+    console.log('<div id="paper"></div><script>const circuit = new digitaljs.Circuit(');
+};
+if (argv.yosys_out) {
+    console.log('/*');
+    console.log(yosys_result.stdout);
+    console.log('*/');
+}
 console.log(JSON.stringify(out[toplevel], null, 2));
-console.log(');const paper = circuit.displayOn($(\'#paper\'));</script></body></html>');
+if (argv.html) {
+    console.log(');const paper = circuit.displayOn($(\'#paper\'));</script></body></html>');
+};
 

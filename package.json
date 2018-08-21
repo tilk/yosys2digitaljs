@@ -12,6 +12,9 @@
     "big-integer": "^1.6.34",
     "dagre": "^0.8.0",
     "hashmap": "^2.3.0",
+    "minimist": "^1.2.0",
+    "shelljs": "^0.8.2",
+    "tmp": "0.0.33",
     "topsort": "^0.0.2"
   },
   "engines": {
