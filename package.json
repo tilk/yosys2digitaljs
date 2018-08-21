@@ -4,7 +4,7 @@
   "description": "Export Yosys netlists to a logic simulator",
   "main": "process.js",
   "scripts": {
-    "test": "echo \"TODO create tests!\" && exit 0"
+    "test": "./run_tests.sh"
   },
   "author": "Marek Materzok",
   "license": "BSD-2-Clause",
