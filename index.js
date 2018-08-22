@@ -2,13 +2,13 @@
 "use strict";
 
 const tmp = require('tmp');
-const shell = require('shelljs');
+const child_process = require('child_process');
 const assert = require('assert');
 const topsort = require('topsort');
 const fs = require('fs');
-const dagre = require('dagre');
 const HashMap = require('hashmap');
 const bigInt = require('big-integer');
+const {promisify} = require('util');
 
 const ltr2bit = {
     '1': 1,
@@ -587,64 +587,15 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
     return mout;
 }
 
-function layout_circuit(circ) {
-    const g = new dagre.graphlib.Graph();
-    const devmap = {};
-    let maxx = 0, maxy = 0;
-
-    g.setGraph({rankdir: 'RL'});
-    g.setDefaultEdgeLabel(function() { return {}; });
-
-    for (const dev of circ.devices) {
-        g.setNode(dev.id, {
-            id: dev.id,
-            width: 32,
-            height: 32
-        });
-        devmap[dev.id] = dev;
-    }
-
-    for (const conn of circ.connectors) {
-        g.setEdge(conn.from.id, conn.to.id);
-    }
-
-    dagre.layout(g);
-
-    for (const nname of g.nodes()) {
-        const node = g.node(nname);
-        devmap[node.id].x = node.x;
-        devmap[node.id].y = node.y;
-        maxx = Math.max(maxx, node.x);
-        maxy = Math.max(maxy, node.y);
-        //console.log(nname + ":" + JSON.stringify(node));
-    }
-
-    circ.width = maxx + 256;
-    circ.height = maxy + 64;
-}
-
-function layout_circuits(circs) {
-    for (const name in circs) {
-        layout_circuit(circs[name]);
-    }
-}
-
-function process(filenames) {
-    const tmpjson = tmp.tmpNameSync({ postfix: '.json' });
-    const yosys_result = shell.exec(
+async function process(filenames) {
+    const tmpjson = await promisify(tmp.tmpName)({ postfix: '.json' });
+    const yosys_result = await promisify(child_process.exec)(
         'yosys -p "hierarchy; proc; fsm; memory -nomap" -o "' + tmpjson + '" ' + filenames.join(' '),
-        {silent: true});
-    if (yosys_result.code !== 0) {
-        return {
-            status: false,
-            yosys_stdout: yosys_result.stdout
-        };
-    }
+        {maxBuffer: 1000000});
     const obj = JSON.parse(fs.readFileSync(tmpjson, 'utf8'));
-    shell.rm(tmpjson);
+    await promisify(fs.unlink)(tmpjson);
     const portmaps = order_ports(obj);
     const out = yosys_to_simcir(obj, portmaps);
-    //layout_circuits(out);
     const toporder = topsort(module_deps(obj));
     toporder.pop();
     const toplevel = toporder.pop();
@@ -660,16 +611,17 @@ function process(filenames) {
     return {
         status: true,
         output: output,
-        yosys_stdout: yosys_result.stdout
+        yosys_stdout: yosys_result.stdout,
+        yosys_stderr: yosys_result.stderr
     };
 }
 
-function process_sv(text) {
-    const tmpsv = tmp.fileSync({ postfix: '.sv' });
-    fs.writeSync(tmpsv.fd, text);
-    fs.closeSync(tmpsv.fd);
-    const ret = process([tmpsv.name]);
-    shell.rm(tmpsv.name);
+async function process_sv(text) {
+    const tmpsv = await promisify(tmp.fileSync)({ postfix: '.sv' });
+    await promisify(fs.writeSync)(tmpsv.fd, text);
+    await promisify(fs.closeSync)(tmpsv.fd);
+    const ret = await process([tmpsv.name]);
+    await promisify(fs.unlink)(tmpsv.name);
     return ret;
 }
 

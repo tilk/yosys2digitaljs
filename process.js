@@ -2,7 +2,6 @@
 "use strict";
 
 const argv = require('minimist')(process.argv.slice(2));
-const shell = require('shelljs');
 
 const header = `<!doctype html>
 <html>
@@ -15,25 +14,27 @@ const header = `<!doctype html>
 
 if (argv._.length === 0) {
     console.error('No Verilog files passed!');
-    shell.exit(1);
+    process.exit(1);
 }
-const res = require('./index.js').process(argv._);
-if (!res.status) {
+require('./index.js').process(argv._)
+.then(res => {
+    if (argv.html) {
+        console.log(header);
+        console.log('<div id="paper"></div><script>const circuit = new digitaljs.Circuit(');
+    };
+    if (argv.yosys_out) {
+        console.log('/*');
+        console.log(res.yosys_stdout);
+        console.log('*/');
+    }
+    console.log(JSON.stringify(res.output, null, 2));
+    if (argv.html) {
+        console.log(');const paper = circuit.displayOn($(\'#paper\'));</script></body></html>');
+    };
+})
+.catch(res => {
     console.error('Yosys failed!');
-    console.error(res.yosys_stdout);
-    shell.exit(1);
-}
-if (argv.html) {
-    console.log(header);
-    console.log('<div id="paper"></div><script>const circuit = new digitaljs.Circuit(');
-};
-if (argv.yosys_out) {
-    console.log('/*');
-    console.log(res.yosys_stdout);
-    console.log('*/');
-}
-console.log(JSON.stringify(res.output, null, 2));
-if (argv.html) {
-    console.log(');const paper = circuit.displayOn($(\'#paper\'));</script></body></html>');
-};
+    console.error(res.stderr);
+    process.exit(1);
+});
 
