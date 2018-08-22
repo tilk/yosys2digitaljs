@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-const tmp = require('tmp');
+const tmp = require('tmp-promise');
 const child_process = require('child_process');
 const assert = require('assert');
 const topsort = require('topsort');
@@ -588,7 +588,7 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
 }
 
 async function process(filenames) {
-    const tmpjson = await promisify(tmp.tmpName)({ postfix: '.json' });
+    const tmpjson = await tmp.tmpName({ postfix: '.json' });
     const yosys_result = await promisify(child_process.exec)(
         'yosys -p "hierarchy; proc; fsm; memory -nomap" -o "' + tmpjson + '" ' + filenames.join(' '),
         {maxBuffer: 1000000});
@@ -617,11 +617,11 @@ async function process(filenames) {
 }
 
 async function process_sv(text) {
-    const tmpsv = await promisify(tmp.fileSync)({ postfix: '.sv' });
-    await promisify(fs.writeSync)(tmpsv.fd, text);
-    await promisify(fs.closeSync)(tmpsv.fd);
-    const ret = await process([tmpsv.name]);
-    await promisify(fs.unlink)(tmpsv.name);
+    const tmpsv = await tmp.file({ postfix: '.sv' });
+    await promisify(fs.write)(tmpsv.fd, text);
+    await promisify(fs.close)(tmpsv.fd);
+    const ret = await process([tmpsv.path]);
+    await promisify(fs.unlink)(tmpsv.path);
     return ret;
 }
 
