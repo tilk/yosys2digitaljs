@@ -8,7 +8,7 @@ module cycleadder
   output [WIDTH-1:0] O
 );
 
-  always_ff @(posedge clk)
+  always_ff @(posedge clk or posedge rst)
     if (rst) O <= 0;
     else if (en) O <= O + A;
 
