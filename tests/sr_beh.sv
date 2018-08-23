@@ -1,4 +1,5 @@
 // SR latch (behavioral model)
+// Synthesized model has timing issues!
 module sr_latch(
   input s, r,
   output logic q, nq
