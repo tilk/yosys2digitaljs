@@ -73,7 +73,7 @@ function order_ports(data) {
         '$dff': {CLK: 'clk', D: 'in', Q: 'out'},
         '$dffe': {CLK: 'clk', EN: 'en', D: 'in', Q: 'out'},
         '$adff': {CLK: 'clk', ARST: 'arst', D: 'in', Q: 'out'},
-        '$dlatch': {EN: 'clk', D: 'in', Q: 'out'},
+        '$dlatch': {EN: 'en', D: 'in', Q: 'out'},
     };
     binary_gates.forEach((nm) => out[nm] = binmap);
     unary_gates.forEach((nm) => out[nm] = unmap);
@@ -423,7 +423,7 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
                 assert(cell.port_directions.EN == 'input');
                 dev.bits = cell.parameters.WIDTH;
                 dev.polarity = {
-                    clock: Boolean(cell.parameters.EN_POLARITY)
+                    enable: Boolean(cell.parameters.EN_POLARITY)
                 };
                 break;
             case '$mem': {
