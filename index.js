@@ -6,6 +6,8 @@ const child_process = require('child_process');
 const assert = require('assert');
 const topsort = require('topsort');
 const fs = require('fs');
+const sanitize = require("sanitize-filename");
+const path = require('path');
 const HashMap = require('hashmap');
 const bigInt = require('big-integer');
 const {promisify} = require('util');
@@ -587,11 +589,11 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
     return mout;
 }
 
-async function process(filenames) {
+async function process(filenames, dirname) {
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
     const yosys_result = await promisify(child_process.exec)(
         'yosys -p "hierarchy; proc; fsm; memory -nomap" -o "' + tmpjson + '" ' + filenames.join(' '),
-        {maxBuffer: 1000000});
+        {maxBuffer: 1000000, cwd: dirname || null});
     const obj = JSON.parse(fs.readFileSync(tmpjson, 'utf8'));
     await promisify(fs.unlink)(tmpjson);
     const portmaps = order_ports(obj);
@@ -616,15 +618,36 @@ async function process(filenames) {
     };
 }
 
+async function process_files(data) {
+    const dir = await tmp.dir();
+    const names = [];
+    try {
+        for (const [name, content] of Object.entries(data)) {
+            const sname = sanitize(name);
+            await promisify(fs.writeFile)(path.resolve(dir.path, sname), content);
+            names.push(sname);
+        }
+        return await process(names, dir.path);
+    } finally {
+        for (const name of names) {
+            await promisify(fs.unlink)(path.resolve(dir.path, name));
+        }
+        dir.cleanup();
+    }
+}
+
 async function process_sv(text) {
     const tmpsv = await tmp.file({ postfix: '.sv' });
-    await promisify(fs.write)(tmpsv.fd, text);
-    await promisify(fs.close)(tmpsv.fd);
-    const ret = await process([tmpsv.path]);
-    await promisify(fs.unlink)(tmpsv.path);
-    return ret;
+    try {
+        await promisify(fs.write)(tmpsv.fd, text);
+        await promisify(fs.close)(tmpsv.fd);
+        return await process([tmpsv.path]);
+    } finally {
+        tmpsv.cleanup();
+    }
 }
 
 exports.process = process;
+exports.process_files = process_files;
 exports.process_sv = process_sv;
 
