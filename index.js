@@ -605,6 +605,11 @@ async function process(filenames, dirname) {
     const toplevel = toporder.pop();
     const output = out[toplevel];
     for (const [name, dev] of Object.entries(output.devices)) {
+        // use clock for clocky named inputs
+        if (dev.celltype == '$input' && dev.bits == 1 && (dev.label == 'clk' || dev.label == 'clock')) {
+            dev.celltype = '$clock';
+            dev.propagation = 100;
+        }
         if (dev.celltype == '$input')
             dev.celltype = dev.bits == 1 ? '$button' : '$numentry';
         if (dev.celltype == '$output')
