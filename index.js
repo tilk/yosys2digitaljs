@@ -418,8 +418,8 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
                 };
                 dev.arst_value = typeof(cell.parameters.ARST_VALUE) == 'number'
                     ? bigInt(cell.parameters.ARST_VALUE).toArray(2).value.map(String).reverse()
-                        .concat(Array(dev.bits).fill('0')).slice(0, dev.bits).join('')
-                    : cell.parameters.ARST_VALUE.split('').reverse().join('');
+                        .concat(Array(dev.bits).fill('0')).slice(0, dev.bits).reverse().join('')
+                    : cell.parameters.ARST_VALUE;
                 break;
             case '$dlatch':
                 assert(cell.connections.EN.length == 1);
@@ -458,7 +458,7 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
                     for (const k of Array(dev.words).keys()) {
                         const wrd = init.slice(dev.bits * k, dev.bits * (k+1));
                         while (wrd.length < dev.bits) wrd.push(l);
-                        dev.memdata.push(wrd.join(''));
+                        dev.memdata.push(wrd.reverse().join(''));
                     }
                 }
                 for (const k of Array(cell.parameters.RD_PORTS).keys()) {
