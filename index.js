@@ -539,7 +539,7 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
         const dname = add_device({
 //            label: String(val), // TODO
             celltype: '$constant',
-            constant: nbits.join('')
+            constant: nbits.slice().reverse().join('')
         });
         add_net_source(nbits, dname, 'out');
     }
