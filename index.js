@@ -416,7 +416,10 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
                     clock: Boolean(cell.parameters.CLK_POLARITY),
                     arst: Boolean(cell.parameters.ARST_POLARITY)
                 };
-                dev.arst_value = Number(cell.parameters.ARST_VALUE);
+                dev.arst_value = typeof(cell.parameters.ARST_VALUE) == 'number'
+                    ? bigInt(cell.parameters.ARST_VALUE).toArray(2).value.map(String).reverse()
+                        .concat(Array(dev.bits).fill('0')).slice(0, dev.bits).join('')
+                    : cell.parameters.ARST_VALUE.split('').reverse().join('');
                 break;
             case '$dlatch':
                 assert(cell.connections.EN.length == 1);
@@ -447,15 +450,15 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
                 const wrpol = decode_json_bigint_as_array(cell.parameters.WR_CLK_POLARITY).reverse();
                 const wren  = decode_json_bigint_as_array(cell.parameters.WR_CLK_ENABLE).reverse();
                 const init  = typeof(cell.parameters.INIT) == 'number'
-                    ? bigInt(cell.parameters.INIT).toArray(2).value.reverse()
-                    : cell.parameters.INIT.split('').map(x => ltr2bit[x]).reverse();
+                    ? bigInt(cell.parameters.INIT).toArray(2).value.map(String).reverse()
+                    : cell.parameters.INIT.split('').reverse();
                 if (cell.parameters.INIT) {
-                    const l = init.slice(-1)[0] == 0 ? 0 : -1;
+                    const l = init.slice(-1)[0] == 'x' ? 'x' : '0';
                     dev.memdata = [];
                     for (const k of Array(dev.words).keys()) {
                         const wrd = init.slice(dev.bits * k, dev.bits * (k+1));
                         while (wrd.length < dev.bits) wrd.push(l);
-                        dev.memdata.push(wrd);
+                        dev.memdata.push(wrd.join(''));
                     }
                 }
                 for (const k of Array(cell.parameters.RD_PORTS).keys()) {
@@ -533,11 +536,10 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
         if (net.source !== undefined) continue;
         if (!nbits.every(constbit))
             continue;
-        const val = nbits.map(x => x == '1' ? 1 : x == '0' ? -1 : 0);
         const dname = add_device({
 //            label: String(val), // TODO
             celltype: '$constant',
-            constant: val
+            constant: nbits.join('')
         });
         add_net_source(nbits, dname, 'out');
     }
