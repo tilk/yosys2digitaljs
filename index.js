@@ -40,6 +40,19 @@ const gate_subst = new Map([
     ['$dffe', '$dff'],
     ['$adff', '$dff'],
     ['$dlatch', '$dff']]);
+const gate_negations = new Map([
+    ['$and', '$nand'],
+    ['$nand', '$and'],
+    ['$nor', '$or'],
+    ['$or', '$nor'],
+    ['$xor', '$xnor'],
+    ['$xnor', '$xor'],
+    ['$reduce_and', '$reduce_nand'],
+    ['$reduce_nand', '$reduce_and'],
+    ['$reduce_nor', '$reduce_or'],
+    ['$reduce_or', '$reduce_nor'],
+    ['$reduce_xor', '$reduce_xnor'],
+    ['$reduce_xnor', '$reduce_xor']]);
 
 function chunkArray(a, chunk_size){
     let results = [];
@@ -578,6 +591,31 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
         const net = nets.get(data.bits);
         if (!net) continue;
         net.name = nname;
+    }
+    // Make some simplifications in the graph
+    // TODO multiple passes, less ad-hoc
+    for (const [nbits, net] of nets.entries()) {
+        if (net.source === undefined || net.targets.length != 1 ||
+            net.source.id == net.targets[0].id) continue;
+        const srcdev = mout.devices[net.source.id];
+        const tgtdev = mout.devices[net.targets[0].id];
+        // eliminate repeaters, TODO nets with multiple targets
+        if (tgtdev.celltype == '$repeater') {
+            delete mout.devices[net.targets[0].id];
+            const t_nbits = devnets.get(net.targets[0].id).get('out');
+            const t_net = nets.get(t_nbits);
+            t_net.source = net.source;
+            nets.delete(nbits);
+        }
+        // eliminate negations
+        if (tgtdev.celltype == '$not' && gate_negations.has(srcdev.celltype)) {
+            srcdev.celltype = gate_negations.get(srcdev.celltype);
+            delete mout.devices[net.targets[0].id];
+            const t_nbits = devnets.get(net.targets[0].id).get('out');
+            const t_net = nets.get(t_nbits);
+            t_net.source = net.source;
+            nets.delete(nbits);
+        }
     }
     // Generate connections between devices
     for (const [nbits, net] of nets.entries()) {
