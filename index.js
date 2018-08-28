@@ -322,6 +322,12 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
             case '$reduce_bool': case '$logic_not':
                 dev.bits = cell.connections.A.length;
                 zero_extend_output(cell.connections.Y);
+                if (dev.bits == 1) {
+                    if (['$reduce_xnor', '$logic_not'].includes(cell.type))
+                        dev.celltype = '$not';
+                    else
+                        dev.celltype = '$repeater';
+                }
                 break;
             case '$eq': case '$ne': case '$lt': case '$le': case 'gt': case 'ge':
             case '$eqx': case '$nex':
