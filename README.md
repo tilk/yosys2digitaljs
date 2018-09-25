@@ -21,3 +21,17 @@ Now you can run yosys2digitaljs on your Verilog or SystemVerilog files:
 ./process.js file.v file.sv ...
 ```
 The generated JSON is printed on standard output.
+
+# API
+Yosys2digitaljs can be used as a library. The API is promise (or async/await) based. Available functions are:
+
+ - `process_sv(sv_text)` - converts a single SystemVerilog source passed as a string.
+ - `process_files(texts)` - converts multiple Verilog/SystemVerilog sources. The `texts` parameter is an object, with keys being file names, and corresponding values containing the file contents as strings. Example: `{ 'test.sv': 'module test; ...' }`.
+ - `process(filenames, dirname)` - converts Verilog/SystemVerilog sources saved on the filesystem under names `filenames` in the directory `dirname`.
+
+The functions return a promise, which fulfills with an object value with following keys:
+
+ - `output`: the conversion result as JS object, which can be stringified to JSON.
+ - `yosys_stdout` and `yosys_stderr`: standard output and error output received from Yosys.
+
+For bigger example, see the [online app demo](http://github.com/tilk/digitaljs_online).
