@@ -29,7 +29,7 @@ require('./index.js').process(argv._)
     }
     console.log(JSON.stringify(res.output, null, 2));
     if (argv.html) {
-        console.log(');const paper = circuit.displayOn($(\'#paper\'));</script></body></html>');
+        console.log(');const paper = circuit.displayOn($(\'#paper\'));circuit.start();</script></body></html>');
     };
 })
 .catch(res => {
