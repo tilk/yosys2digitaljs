@@ -680,7 +680,7 @@ async function process_files(data) {
         }
         return await process(names, dir.path);
     } finally {
-        for (const name of names) {
+        for (const name of Object.keys(data)) {
             await promisify(fs.unlink)(path.resolve(dir.path, name));
         }
         dir.cleanup();
