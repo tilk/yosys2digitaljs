@@ -1,7 +1,16 @@
 #!/usr/bin/env node
 "use strict";
 
+const fs = require('fs');
 const argv = require('minimist')(process.argv.slice(2));
+
+function read_files(l) {
+    const ret = {};
+    for (const name of l) {
+        ret[name] = fs.readFileSync(name);
+    };
+    return ret;
+}
 
 const header = `<!doctype html>
 <html>
@@ -16,8 +25,9 @@ if (argv._.length === 0) {
     console.error('No Verilog files passed!');
     process.exit(1);
 }
-require('./index.js').process(argv._)
-.then(res => {
+const yosys2digitaljs = require('./index.js');
+const result = argv.tmpdir ? yosys2digitaljs.process_files(read_files(argv._)) : yosys2digitaljs.process(argv._);
+result.then(res => {
     if (argv.html) {
         console.log(header);
         console.log('<div id="paper"></div><script>const circuit = new digitaljs.Circuit(');
