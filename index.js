@@ -207,7 +207,7 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
             add_net_target(cell.connections.RD_ADDR.slice(dev.abits * k, dev.abits * (k+1)),
                 dname, portname + "addr");
             add_net_source(cell.connections.RD_DATA.slice(dev.bits * k, dev.bits * (k+1)),
-                dname, portname + "data");
+                dname, portname + "data", true);
             if ('clock_polarity' in port)
                 add_net_target([cell.connections.RD_CLK[k]], dname, portname + "clk");
             if ('enable_polarity' in port)
