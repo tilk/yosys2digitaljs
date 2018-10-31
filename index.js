@@ -676,7 +676,7 @@ async function process_files(data) {
         for (const [name, content] of Object.entries(data)) {
             const sname = sanitize(name);
             await promisify(fs.writeFile)(path.resolve(dir.path, sname), content);
-            names.push(sname);
+            if (/\.(v|sv)$/.test(sname)) names.push(sname);
         }
         return await process(names, dir.path);
     } finally {
