@@ -11,6 +11,7 @@ const path = require('path');
 const HashMap = require('hashmap');
 const bigInt = require('big-integer');
 const {promisify} = require('util');
+const {Vector3vl, Mem3vl} = require('3vl');
 
 const ltr2bit = {
     '1': 1,
@@ -473,12 +474,13 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
                     : cell.parameters.INIT.split('').reverse();
                 if (cell.parameters.INIT) {
                     const l = init.slice(-1)[0] == 'x' ? 'x' : '0';
-                    dev.memdata = [];
+                    const memdata = new Mem3vl(dev.bits, dev.words);
                     for (const k of Array(dev.words).keys()) {
                         const wrd = init.slice(dev.bits * k, dev.bits * (k+1));
                         while (wrd.length < dev.bits) wrd.push(l);
-                        dev.memdata.push(wrd.reverse().join(''));
+                        memdata.set(k, Vector3vl.fromBin(wrd.reverse().join('')));
                     }
+                    dev.memdata = memdata.toJSON();
                 }
                 for (const k of Array(cell.parameters.RD_PORTS).keys()) {
                     const port = {

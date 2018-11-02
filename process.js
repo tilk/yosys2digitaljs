@@ -37,14 +37,14 @@ result.then(res => {
         console.log(res.yosys_stdout);
         console.log('*/');
     }
-    console.log(JSON.stringify(res.output, null, 2));
+    console.log(JSON.stringify(res.output, null, argv.noindent ? 0 : 2));
     if (argv.html) {
         console.log(');const paper = circuit.displayOn($(\'#paper\'));circuit.start();</script></body></html>');
     };
 })
 .catch(res => {
     console.error('Yosys failed!');
-    console.error(res.stderr);
+    console.error(res);
     process.exit(1);
 });
 
