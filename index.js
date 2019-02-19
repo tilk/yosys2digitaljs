@@ -650,6 +650,17 @@ async function process(filenames, dirname) {
     toporder.pop();
     const toplevel = toporder.pop();
     const output = out[toplevel];
+    output.subcircuits = {};
+    for (const x of toporder) output.subcircuits[x] = out[x];
+    return {
+        status: true,
+        output: output,
+        yosys_stdout: yosys_result.stdout,
+        yosys_stderr: yosys_result.stderr
+    };
+}
+
+function io_ui(output) {
     for (const [name, dev] of Object.entries(output.devices)) {
         // use clock for clocky named inputs
         if (dev.celltype == '$input' && dev.bits == 1 && (dev.label == 'clk' || dev.label == 'clock')) {
@@ -661,14 +672,6 @@ async function process(filenames, dirname) {
         if (dev.celltype == '$output')
             dev.celltype = dev.bits == 1 ? '$lamp' : '$numdisplay';
     }
-    output.subcircuits = {};
-    for (const x of toporder) output.subcircuits[x] = out[x];
-    return {
-        status: true,
-        output: output,
-        yosys_stdout: yosys_result.stdout,
-        yosys_stderr: yosys_result.stderr
-    };
 }
 
 async function process_files(data) {
@@ -703,4 +706,5 @@ async function process_sv(text) {
 exports.process = process;
 exports.process_files = process_files;
 exports.process_sv = process_sv;
+exports.io_ui = io_ui;
 
