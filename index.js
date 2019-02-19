@@ -641,23 +641,30 @@ async function process(filenames, dirname) {
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
     const yosys_result = await promisify(child_process.exec)(
         'yosys -p "hierarchy; proc; fsm; memory -nomap" -o "' + tmpjson + '" ' + filenames.join(' '),
-        {maxBuffer: 1000000, cwd: dirname || null});
-    const obj = JSON.parse(fs.readFileSync(tmpjson, 'utf8'));
-    await promisify(fs.unlink)(tmpjson);
-    const portmaps = order_ports(obj);
-    const out = yosys_to_simcir(obj, portmaps);
-    const toporder = topsort(module_deps(obj));
-    toporder.pop();
-    const toplevel = toporder.pop();
-    const output = out[toplevel];
-    output.subcircuits = {};
-    for (const x of toporder) output.subcircuits[x] = out[x];
-    return {
-        status: true,
-        output: output,
-        yosys_stdout: yosys_result.stdout,
-        yosys_stderr: yosys_result.stderr
-    };
+        {maxBuffer: 1000000, cwd: dirname || null})
+        .catch(exc => exc);
+    try {
+        if (yosys_result instanceof Error) throw yosys_result;
+        const obj = JSON.parse(fs.readFileSync(tmpjson, 'utf8'));
+        await promisify(fs.unlink)(tmpjson);
+        const portmaps = order_ports(obj);
+        const out = yosys_to_simcir(obj, portmaps);
+        const toporder = topsort(module_deps(obj));
+        toporder.pop();
+        const toplevel = toporder.pop();
+        const output = out[toplevel];
+        output.subcircuits = {};
+        for (const x of toporder) output.subcircuits[x] = out[x];
+        return {
+            output: output,
+            yosys_stdout: yosys_result.stdout,
+            yosys_stderr: yosys_result.stderr
+        };
+    } catch (exc) {
+        exc.yosys_stdout = yosys_result.stdout;
+        exc.yosys_stderr = yosys_result.stderr;
+        throw exc;
+    }
 }
 
 function io_ui(output) {
