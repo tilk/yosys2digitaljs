@@ -640,7 +640,7 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
 async function process(filenames, dirname) {
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
     const yosys_result = await promisify(child_process.exec)(
-        'yosys -p "hierarchy; proc; fsm; memory -nomap" -o "' + tmpjson + '" ' + filenames.join(' '),
+        'yosys -p "hierarchy; proc; fsm; memory -nomap; dff2dffe; wreduce -memx; opt -full" -o "' + tmpjson + '" ' + filenames.join(' '),
         {maxBuffer: 1000000, cwd: dirname || null})
         .catch(exc => exc);
     try {
