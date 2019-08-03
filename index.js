@@ -127,6 +127,7 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
         return bit == '0' || bit == '1' || bit == 'x';
     }
     const nets = new HashMap();
+    const netnames = new HashMap();
     const bits = new Map();
     const devnets = new Map();
     let n = 0, pn = 0;
@@ -141,12 +142,15 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
     function get_net(k) {
         // create net if does not exist yet
         if (!nets.has(k))
-            nets.set(k, {source: undefined, targets: [], name: undefined});
+            nets.set(k, {source: undefined, targets: [], name: netnames.get(k)});
         return nets.get(k);
     }
     function add_net_source(k, d, p, primary) {
         const net = get_net(k);
-        assert(net.source === undefined);
+        if(net.source !== undefined) {
+            // multiple sources driving one net, disallowed in digitaljs
+            throw Error('Multiple sources driving net: ' + net.name);
+        }
         net.source = { id: d, port: p };
         if (primary) for (const [nbit, bit] of k.entries()) {
             bits.set(bit, { id: d, port: p, num: nbit });
@@ -226,6 +230,11 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
                 add_net_target(cell.connections.WR_EN.slice(dev.bits * k, dev.bits * (k+1)),
                     dname, portname + "en");
         }
+    }
+    // Find net names
+    for (const [nname, data] of Object.entries(mod.netnames)) {
+        if (data.hide_name) continue;
+        netnames.set(data.bits, nname);
     }
     // Add inputs/outputs
     for (const [pname, port] of Object.entries(mod.ports)) {
@@ -586,13 +595,6 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
         });
         add_net_source(nbits, dname, 'out');
         add_net_target(cconn, dname, 'in');
-    }
-    // Label nets
-    for (const [nname, data] of Object.entries(mod.netnames)) {
-        if (data.hide_name) continue;
-        const net = nets.get(data.bits);
-        if (!net) continue;
-        net.name = nname;
     }
     // Make some simplifications in the graph
     // TODO multiple passes, less ad-hoc
