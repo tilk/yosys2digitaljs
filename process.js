@@ -2,7 +2,7 @@
 "use strict";
 
 const fs = require('fs');
-const argv = require('minimist')(process.argv.slice(2));
+const argv = require('minimist')(process.argv.slice(2), {boolean: true});
 
 function read_files(l) {
     const ret = {};
@@ -37,7 +37,9 @@ result.then(res => {
         console.log(res.yosys_stdout);
         console.log('*/');
     }
-    console.log(JSON.stringify(res.output, null, argv.noindent ? 0 : 2));
+    const output = res.output;
+    if (!argv.no_io_ui) yosys2digitaljs.io_ui(output);
+    console.log(JSON.stringify(output, null, argv.noindent ? 0 : 2));
     if (argv.html) {
         console.log(');const paper = circuit.displayOn($(\'#paper\'));circuit.start();</script></body></html>');
     };

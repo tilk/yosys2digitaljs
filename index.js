@@ -642,16 +642,34 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
 async function process(filenames, dirname) {
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
     const yosys_result = await promisify(child_process.exec)(
-        'yosys -p "hierarchy; proc; fsm; memory -nomap" -o "' + tmpjson + '" ' + filenames.join(' '),
-        {maxBuffer: 1000000, cwd: dirname || null});
-    const obj = JSON.parse(fs.readFileSync(tmpjson, 'utf8'));
-    await promisify(fs.unlink)(tmpjson);
-    const portmaps = order_ports(obj);
-    const out = yosys_to_simcir(obj, portmaps);
-    const toporder = topsort(module_deps(obj));
-    toporder.pop();
-    const toplevel = toporder.pop();
-    const output = out[toplevel];
+        'yosys -p "hierarchy; proc; fsm; memory -nomap; dff2dffe; wreduce -memx; opt -full" -o "' + tmpjson + '" ' + filenames.join(' '),
+        {maxBuffer: 1000000, cwd: dirname || null})
+        .catch(exc => exc);
+    try {
+        if (yosys_result instanceof Error) throw yosys_result;
+        const obj = JSON.parse(fs.readFileSync(tmpjson, 'utf8'));
+        await promisify(fs.unlink)(tmpjson);
+        const portmaps = order_ports(obj);
+        const out = yosys_to_simcir(obj, portmaps);
+        const toporder = topsort(module_deps(obj));
+        toporder.pop();
+        const toplevel = toporder.pop();
+        const output = out[toplevel];
+        output.subcircuits = {};
+        for (const x of toporder) output.subcircuits[x] = out[x];
+        return {
+            output: output,
+            yosys_stdout: yosys_result.stdout,
+            yosys_stderr: yosys_result.stderr
+        };
+    } catch (exc) {
+        exc.yosys_stdout = yosys_result.stdout;
+        exc.yosys_stderr = yosys_result.stderr;
+        throw exc;
+    }
+}
+
+function io_ui(output) {
     for (const [name, dev] of Object.entries(output.devices)) {
         // use clock for clocky named inputs
         if (dev.celltype == '$input' && dev.bits == 1 && (dev.label == 'clk' || dev.label == 'clock')) {
@@ -663,14 +681,6 @@ async function process(filenames, dirname) {
         if (dev.celltype == '$output')
             dev.celltype = dev.bits == 1 ? '$lamp' : '$numdisplay';
     }
-    output.subcircuits = {};
-    for (const x of toporder) output.subcircuits[x] = out[x];
-    return {
-        status: true,
-        output: output,
-        yosys_stdout: yosys_result.stdout,
-        yosys_stderr: yosys_result.stderr
-    };
 }
 
 async function process_files(data) {
@@ -705,4 +715,5 @@ async function process_sv(text) {
 exports.process = process;
 exports.process_files = process_files;
 exports.process_sv = process_sv;
+exports.io_ui = io_ui;
 
