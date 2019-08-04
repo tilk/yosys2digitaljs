@@ -639,10 +639,12 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
     return mout;
 }
 
-async function process(filenames, dirname) {
+async function process(filenames, dirname, options) {
+    options = options || {};
+    const optimize = options.optimize ? "; opt -full" : "";
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
     const yosys_result = await promisify(child_process.exec)(
-        'yosys -p "hierarchy; proc; fsm; memory -nomap; dff2dffe; wreduce -memx; opt -full" -o "' + tmpjson + '" ' + filenames.join(' '),
+        'yosys -p "hierarchy; proc; fsm; memory -nomap; dff2dffe; wreduce -memx' + optimize + '" -o "' + tmpjson + '" ' + filenames.join(' '),
         {maxBuffer: 1000000, cwd: dirname || null})
         .catch(exc => exc);
     try {
@@ -683,7 +685,7 @@ function io_ui(output) {
     }
 }
 
-async function process_files(data) {
+async function process_files(data, options) {
     const dir = await tmp.dir();
     const names = [];
     try {
@@ -692,7 +694,7 @@ async function process_files(data) {
             await promisify(fs.writeFile)(path.resolve(dir.path, sname), content);
             if (/\.(v|sv)$/.test(sname)) names.push(sname);
         }
-        return await process(names, dir.path);
+        return await process(names, dir.path, options);
     } finally {
         for (const name of Object.keys(data)) {
             await promisify(fs.unlink)(path.resolve(dir.path, name));
