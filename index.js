@@ -644,11 +644,21 @@ async function process(filenames, dirname, options) {
     const optimize = options.optimize ? "; opt -full" : "";
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
     const yosys_result = await promisify(child_process.exec)(
-        'yosys -p "hierarchy; proc; fsm; memory -nomap; dff2dffe; wreduce -memx' + optimize + '" -o "' + tmpjson + '" ' + filenames.join(' '),
-        {maxBuffer: 1000000, cwd: dirname || null})
+        'yosys -p "hierarchy; proc; fsm; memory -nomap; dff2dffe; wreduce -memx' + 
+        optimize + '" -o "' + tmpjson + '" ' + 
+        filenames.map(cmd => '"' + cmd.replace(/(["\s'$`\\])/g,'\\$1') + '"').join(' '),
+        {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60})
         .catch(exc => exc);
     try {
-        if (yosys_result instanceof Error) throw yosys_result;
+        if (yosys_result instanceof Error) {
+            if (yosys_result.killed) 
+                yosys_result.message = "Yosys killed"
+            else if (yosys_result.code)
+                yosys_result.message = "Yosys failed with code " + yosys_result.code;
+            else
+                yosys_result.message = "Yosys failed";
+            throw yosys_result;
+        }
         const obj = JSON.parse(fs.readFileSync(tmpjson, 'utf8'));
         await promisify(fs.unlink)(tmpjson);
         const portmaps = order_ports(obj);
