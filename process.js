@@ -39,6 +39,11 @@ result.then(res => {
         console.log(res.yosys_stdout);
         console.log('*/');
     }
+    if (argv.yosys_output) {
+        console.log('/*');
+        console.log(JSON.stringify(res.yosys_output, null, argv.noindent ? 0 : 2));
+        console.log('*/');
+    }
     const output = res.output;
     if (!argv.no_io_ui) yosys2digitaljs.io_ui(output);
     console.log(JSON.stringify(output, null, argv.noindent ? 0 : 2));

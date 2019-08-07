@@ -671,6 +671,7 @@ async function process(filenames, dirname, options) {
         for (const x of toporder) output.subcircuits[x] = out[x];
         return {
             output: output,
+            yosys_output: obj,
             yosys_stdout: yosys_result.stdout,
             yosys_stderr: yosys_result.stderr
         };
