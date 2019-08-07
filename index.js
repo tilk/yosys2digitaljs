@@ -114,6 +114,14 @@ function decode_json_bigint_as_array(param) {
     return decode_json_bigint(param).toArray(2).value;
 }
 
+function decode_json_constant(param, bits) {
+    if (typeof param == 'number')
+        return bigInt(param).toArray(2).value.map(String).reverse()
+            .concat(Array(bits).fill('0')).slice(0, bits).reverse().join('');
+    else
+        return param;
+}
+
 function yosys_to_simcir(data, portmaps) {
     const out = {};
     for (const [name, mod] of Object.entries(data.modules)) {
@@ -445,10 +453,7 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
                     clock: Boolean(cell.parameters.CLK_POLARITY),
                     arst: Boolean(cell.parameters.ARST_POLARITY)
                 };
-                dev.arst_value = typeof(cell.parameters.ARST_VALUE) == 'number'
-                    ? bigInt(cell.parameters.ARST_VALUE).toArray(2).value.map(String).reverse()
-                        .concat(Array(dev.bits).fill('0')).slice(0, dev.bits).reverse().join('')
-                    : cell.parameters.ARST_VALUE;
+                dev.arst_value = decode_json_constant(cell.parameters.ARST_VALUE, dev.bits);
                 break;
             case '$dlatch':
                 assert(cell.connections.EN.length == 1);
@@ -517,6 +522,12 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
                 break;
             }
             default:
+        }
+        if (dev.celltype == '$dff') {
+            // find register initial value, if exists
+            const nm = get_net(cell.connections.Q).name;
+            if (nm !== undefined && mod.netnames[nm].attributes.init !== undefined)
+                dev.initial = decode_json_constant(mod.netnames[nm].attributes.init, dev.bits);
         }
         const portmap = portmaps[cell.type];
         if (portmap) connect_device(dname, cell, portmap);
