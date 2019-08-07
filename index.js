@@ -647,7 +647,7 @@ async function process(filenames, dirname, options) {
         'yosys -p "hierarchy; proc; fsm; memory -nomap; dff2dffe; wreduce -memx' + 
         optimize + '" -o "' + tmpjson + '" ' + 
         filenames.map(cmd => '"' + cmd.replace(/(["\s'$`\\])/g,'\\$1') + '"').join(' '),
-        {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60})
+        {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000})
         .catch(exc => exc);
     try {
         if (yosys_result instanceof Error) {
