@@ -28,6 +28,7 @@ if (argv._.length === 0) {
 const yosys2digitaljs = require('./index.js');
 const opts = {};
 if (argv.optimize) opts.optimize = true;
+if (argv.fsm) opts.fsm = argv.fsm;
 const result = argv.tmpdir ? yosys2digitaljs.process_files(read_files(argv._), opts) : yosys2digitaljs.process(argv._, null, opts);
 result.then(res => {
     if (argv.html) {

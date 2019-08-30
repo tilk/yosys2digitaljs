@@ -88,6 +88,7 @@ function order_ports(data) {
         '$dffe': {CLK: 'clk', EN: 'en', D: 'in', Q: 'out'},
         '$adff': {CLK: 'clk', ARST: 'arst', D: 'in', Q: 'out'},
         '$dlatch': {EN: 'en', D: 'in', Q: 'out'},
+        '$fsm': {ARST: 'arst', CLK: 'clk', CTRL_IN: 'in', CTRL_OUT: 'out'}
     };
     binary_gates.forEach((nm) => out[nm] = binmap);
     unary_gates.forEach((nm) => out[nm] = unmap);
@@ -463,6 +464,45 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
                     enable: Boolean(cell.parameters.EN_POLARITY)
                 };
                 break;
+            case '$fsm': {
+                assert(cell.connections.ARST.length == 1);
+                assert(cell.connections.CLK.length == 1);
+                assert(cell.connections.CTRL_IN.length == cell.parameters.CTRL_IN_WIDTH);
+                assert(cell.connections.CTRL_OUT.length == cell.parameters.CTRL_OUT_WIDTH);
+                const step = 2*cell.parameters.STATE_NUM_LOG2 
+                           + cell.parameters.CTRL_IN_WIDTH
+                           + cell.parameters.CTRL_OUT_WIDTH;
+                const tt = typeof(cell.parameters.TRANS_TABLE) == "number"
+                         ? bigInt(cell.parameters.TRANS_TABLE).toString(2)
+                         : cell.parameters.TRANS_TABLE;
+                assert(tt.length == cell.parameters.TRANS_NUM * step);
+                dev.polarity = {
+                    clock: Boolean(cell.parameters.CLK_POLARITY),
+                    arst: Boolean(cell.parameters.ARST_POLARITY)
+                };
+                dev.wirename = cell.parameters.NAME;
+                dev.bits = {
+                    in: cell.parameters.CTRL_IN_WIDTH,
+                    out: cell.parameters.CTRL_OUT_WIDTH
+                };
+                dev.states = cell.parameters.STATE_NUM;
+                dev.trans_table = [];
+                for (let i = 0; i < cell.parameters.TRANS_NUM; i++) {
+                    let base = i * step;
+                    const o = {};
+                    const f = (sz) => {
+                        const ret = tt.slice(base, base + sz);
+                        base += sz;
+                        return ret;
+                    };
+                    o.state_in = parseInt(f(cell.parameters.STATE_NUM_LOG2), 2);
+                    o.ctrl_in = f(cell.parameters.CTRL_IN_WIDTH).replace(/-/g, 'x');
+                    o.state_out = parseInt(f(cell.parameters.STATE_NUM_LOG2), 2);
+                    o.ctrl_out = f(cell.parameters.CTRL_OUT_WIDTH);
+                    dev.trans_table.push(o);
+                }
+                break;
+            }
             case '$mem': {
                 assert(cell.connections.RD_EN.length == cell.parameters.RD_PORTS);
                 assert(cell.connections.RD_CLK.length == cell.parameters.RD_PORTS);
@@ -653,9 +693,12 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
 async function process(filenames, dirname, options) {
     options = options || {};
     const optimize = options.optimize ? "; opt -full" : "";
+    const fsmpass = options.fsm == "nomap" ? "; fsm -nomap"
+                  : options.fsm ? "; fsm"
+                  : "";
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
     const yosys_result = await promisify(child_process.exec)(
-        'yosys -p "hierarchy; proc; fsm; memory -nomap; dff2dffe; wreduce -memx' + 
+        'yosys -p "hierarchy; proc' + fsmpass + '; memory -nomap; dff2dffe; wreduce -memx' + 
         optimize + '" -o "' + tmpjson + '" ' + 
         filenames.map(cmd => '"' + cmd.replace(/(["\s'$`\\])/g,'\\$1') + '"').join(' '),
         {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000})
