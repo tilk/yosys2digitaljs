@@ -486,6 +486,7 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
                     out: cell.parameters.CTRL_OUT_WIDTH
                 };
                 dev.states = cell.parameters.STATE_NUM;
+                dev.init_state = cell.parameters.STATE_RST;
                 dev.trans_table = [];
                 for (let i = 0; i < cell.parameters.TRANS_NUM; i++) {
                     let base = i * step;
