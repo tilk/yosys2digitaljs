@@ -473,7 +473,7 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
                            + cell.parameters.CTRL_IN_WIDTH
                            + cell.parameters.CTRL_OUT_WIDTH;
                 const tt = typeof(cell.parameters.TRANS_TABLE) == "number"
-                         ? bigInt(cell.parameters.TRANS_TABLE).toString(2)
+                         ? Vector3vl.fromBin(bigInt(cell.parameters.TRANS_TABLE).toString(2), cell.parameters.TRANS_NUM * step).toBin() // workaround for yosys silliness
                          : cell.parameters.TRANS_TABLE;
                 assert(tt.length == cell.parameters.TRANS_NUM * step);
                 dev.polarity = {
@@ -693,13 +693,15 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
 
 async function process(filenames, dirname, options) {
     options = options || {};
-    const optimize = options.optimize ? "; opt -full" : "";
-    const fsmpass = options.fsm == "nomap" ? "; fsm -nomap"
-                  : options.fsm ? "; fsm"
+    const optimize_simp = options.optimize ? "; opt" : "; opt_clean";
+    const optimize = options.optimize ? "; opt -full" : "; opt_clean";
+    const fsmexpand = options.fsmexpand ? " -expand" : "";
+    const fsmpass = options.fsm == "nomap" ? "; fsm -nomap" + fsmexpand
+                  : options.fsm ? "; fsm" + fsmexpand
                   : "";
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
     const yosys_result = await promisify(child_process.exec)(
-        'yosys -p "hierarchy; proc' + fsmpass + '; memory -nomap; dff2dffe; wreduce -memx' + 
+        'yosys -p "hierarchy; proc' + optimize_simp + fsmpass + '; memory -nomap; dff2dffe; wreduce -memx' + 
         optimize + '" -o "' + tmpjson + '" ' + 
         filenames.map(cmd => '"' + cmd.replace(/(["\s'$`\\])/g,'\\$1') + '"').join(' '),
         {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000})
