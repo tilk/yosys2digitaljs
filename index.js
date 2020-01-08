@@ -272,12 +272,17 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
                 const ccon = con.slice();
                 const pad = sig ? con.slice(-1)[0] : '0';
                 con.splice(con.length, 0, ...Array(sz - con.length).fill(pad));
-                const extname = add_device({
-                    celltype: sig ? '$signextend' : '$zeroextend',
-                    extend: { input: ccon.length, output: con.length }
-                });
-                add_net_target(ccon, extname, 'in');
-                add_net_source(con, extname, 'out');
+                if (!con.every(constbit) && get_net(con).source === undefined) {
+                    // WARNING: potentially troublesome hack for readability
+                    // handled generally in the grouping phase,
+                    // but it's hard to add sign extensions there
+                    const extname = add_device({
+                        celltype: sig ? '$signextend' : '$zeroextend',
+                        extend: { input: ccon.length, output: con.length }
+                    });
+                    add_net_target(ccon, extname, 'in');
+                    add_net_source(con, extname, 'out');
+                }
             }
         }
         function zero_extend_output(con) {
