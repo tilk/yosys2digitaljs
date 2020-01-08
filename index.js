@@ -13,12 +13,6 @@ const bigInt = require('big-integer');
 const {promisify} = require('util');
 const {Vector3vl, Mem3vl} = require('3vl');
 
-const ltr2bit = {
-    '1': 1,
-    'x': 0,
-    '0': -1
-};
-
 const unary_gates = new Set([
     '$not', '$neg', '$pos', '$reduce_and', '$reduce_or', '$reduce_xor',
     '$reduce_xnor', '$reduce_bool', '$logic_not']);
