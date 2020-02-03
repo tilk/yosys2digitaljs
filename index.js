@@ -145,7 +145,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
     function get_net(k) {
         // create net if does not exist yet
         if (!nets.has(k))
-            nets.set(k, {source: undefined, targets: [], name: netnames.get(k)});
+            nets.set(k, {source: undefined, targets: [], name: netnames.get(k)[0]});
         return nets.get(k);
     }
     function add_net_source(k, d, p, primary) {
@@ -237,7 +237,12 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
     // Find net names
     for (const [nname, data] of Object.entries(mod.netnames)) {
         if (data.hide_name) continue;
-        netnames.set(data.bits, nname);
+        let l = netnames.get(data.bits);
+        if (l === undefined) {
+            l = [];
+            netnames.set(data.bits, l);
+        }
+        l.push(nname);
     }
     // Add inputs/outputs
     for (const [pname, port] of Object.entries(mod.ports)) {
@@ -565,9 +570,14 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
         }
         if (dev.celltype == '$dff') {
             // find register initial value, if exists
-            const nm = get_net(cell.connections.Q).name;
-            if (nm !== undefined && mod.netnames[nm].attributes.init !== undefined)
-                dev.initial = decode_json_constant(mod.netnames[nm].attributes.init, dev.bits);
+            // Yosys puts initial values in net attributes; there can be many for single actual net!
+            const nms = netnames.get(cell.connections.Q);
+            if (nms !== undefined) {
+                for (const nm of nms) {
+                    if (mod.netnames[nm].attributes.init !== undefined)
+                        dev.initial = decode_json_constant(mod.netnames[nm].attributes.init, dev.bits);
+                }
+            }
         }
         const portmap = portmaps[cell.type];
         if (portmap) connect_device(dname, cell, portmap);
