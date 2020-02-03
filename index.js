@@ -144,8 +144,10 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
     }
     function get_net(k) {
         // create net if does not exist yet
-        if (!nets.has(k))
-            nets.set(k, {source: undefined, targets: [], name: netnames.get(k)[0]});
+        if (!nets.has(k)) {
+            const nms = netnames.get(k);
+            nets.set(k, {source: undefined, targets: [], name: nms ? nms[0] : undefined});
+        }
         return nets.get(k);
     }
     function add_net_source(k, d, p, primary) {
