@@ -117,15 +117,15 @@ function decode_json_constant(param, bits) {
         return param;
 }
 
-function yosys_to_simcir(data, portmaps) {
+function yosys_to_digitaljs(data, portmaps) {
     const out = {};
     for (const [name, mod] of Object.entries(data.modules)) {
-        out[name] = yosys_to_simcir_mod(name, mod, portmaps);
+        out[name] = yosys_to_digitaljs_mod(name, mod, portmaps);
     }
     return out
 }
 
-function yosys_to_simcir_mod(name, mod, portmaps) {
+function yosys_to_digitaljs_mod(name, mod, portmaps) {
     function constbit(bit) {
         return bit == '0' || bit == '1' || bit == 'x';
     }
@@ -718,7 +718,7 @@ async function process(filenames, dirname, options) {
         const obj = JSON.parse(fs.readFileSync(tmpjson, 'utf8'));
         await promisify(fs.unlink)(tmpjson);
         const portmaps = order_ports(obj);
-        const out = yosys_to_simcir(obj, portmaps);
+        const out = yosys_to_digitaljs(obj, portmaps);
         const toporder = topsort(module_deps(obj));
         toporder.pop();
         const toplevel = toporder.pop();
