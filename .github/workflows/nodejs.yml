@@ -13,8 +13,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - run: sudo add-apt-repository ppa:saltmakrell/ppa -y
-    - run: sudo apt-get update
     - run: sudo apt-get install -y yosys
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v1
