@@ -13,12 +13,6 @@ const bigInt = require('big-integer');
 const {promisify} = require('util');
 const {Vector3vl, Mem3vl} = require('3vl');
 
-const ltr2bit = {
-    '1': 1,
-    'x': 0,
-    '0': -1
-};
-
 const unary_gates = new Set([
     '$not', '$neg', '$pos', '$reduce_and', '$reduce_or', '$reduce_xor',
     '$reduce_xnor', '$reduce_bool', '$logic_not']);
@@ -123,15 +117,15 @@ function decode_json_constant(param, bits) {
         return param;
 }
 
-function yosys_to_simcir(data, portmaps) {
+function yosys_to_digitaljs(data, portmaps) {
     const out = {};
     for (const [name, mod] of Object.entries(data.modules)) {
-        out[name] = yosys_to_simcir_mod(name, mod, portmaps);
+        out[name] = yosys_to_digitaljs_mod(name, mod, portmaps);
     }
     return out
 }
 
-function yosys_to_simcir_mod(name, mod, portmaps) {
+function yosys_to_digitaljs_mod(name, mod, portmaps) {
     function constbit(bit) {
         return bit == '0' || bit == '1' || bit == 'x';
     }
@@ -150,8 +144,10 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
     }
     function get_net(k) {
         // create net if does not exist yet
-        if (!nets.has(k))
-            nets.set(k, {source: undefined, targets: [], name: netnames.get(k)});
+        if (!nets.has(k)) {
+            const nms = netnames.get(k);
+            nets.set(k, {source: undefined, targets: [], name: nms ? nms[0] : undefined});
+        }
         return nets.get(k);
     }
     function add_net_source(k, d, p, primary) {
@@ -243,7 +239,12 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
     // Find net names
     for (const [nname, data] of Object.entries(mod.netnames)) {
         if (data.hide_name) continue;
-        netnames.set(data.bits, nname);
+        let l = netnames.get(data.bits);
+        if (l === undefined) {
+            l = [];
+            netnames.set(data.bits, l);
+        }
+        l.push(nname);
     }
     // Add inputs/outputs
     for (const [pname, port] of Object.entries(mod.ports)) {
@@ -278,12 +279,17 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
                 const ccon = con.slice();
                 const pad = sig ? con.slice(-1)[0] : '0';
                 con.splice(con.length, 0, ...Array(sz - con.length).fill(pad));
-                const extname = add_device({
-                    celltype: sig ? '$signextend' : '$zeroextend',
-                    extend: { input: ccon.length, output: con.length }
-                });
-                add_net_target(ccon, extname, 'in');
-                add_net_source(con, extname, 'out');
+                if (!con.every(constbit) && get_net(con).source === undefined) {
+                    // WARNING: potentially troublesome hack for readability
+                    // handled generally in the grouping phase,
+                    // but it's hard to add sign extensions there
+                    const extname = add_device({
+                        celltype: sig ? '$signextend' : '$zeroextend',
+                        extend: { input: ccon.length, output: con.length }
+                    });
+                    add_net_target(ccon, extname, 'in');
+                    add_net_source(con, extname, 'out');
+                }
             }
         }
         function zero_extend_output(con) {
@@ -566,9 +572,14 @@ function yosys_to_simcir_mod(name, mod, portmaps) {
         }
         if (dev.celltype == '$dff') {
             // find register initial value, if exists
-            const nm = get_net(cell.connections.Q).name;
-            if (nm !== undefined && mod.netnames[nm].attributes.init !== undefined)
-                dev.initial = decode_json_constant(mod.netnames[nm].attributes.init, dev.bits);
+            // Yosys puts initial values in net attributes; there can be many for single actual net!
+            const nms = netnames.get(cell.connections.Q);
+            if (nms !== undefined) {
+                for (const nm of nms) {
+                    if (mod.netnames[nm].attributes.init !== undefined)
+                        dev.initial = decode_json_constant(mod.netnames[nm].attributes.init, dev.bits);
+                }
+            }
         }
         const portmap = portmaps[cell.type];
         if (portmap) connect_device(dname, cell, portmap);
@@ -719,7 +730,7 @@ async function process(filenames, dirname, options) {
         const obj = JSON.parse(fs.readFileSync(tmpjson, 'utf8'));
         await promisify(fs.unlink)(tmpjson);
         const portmaps = order_ports(obj);
-        const out = yosys_to_simcir(obj, portmaps);
+        const out = yosys_to_digitaljs(obj, portmaps);
         const toporder = topsort(module_deps(obj));
         toporder.pop();
         const toplevel = toporder.pop();
