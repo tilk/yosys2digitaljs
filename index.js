@@ -23,31 +23,81 @@ const binary_gates = new Set([
     '$shl', '$shr', '$sshl', '$sshr', '$shift', '$shiftx',
     '$logic_and', '$logic_or']);
 const gate_subst = new Map([
-    ['$reduce_bool', '$reduce_or'],
-    ['$eqx', '$eq'],
-    ['$nex', '$ne'],
-    ['$sshl', '$shl'],
-    ['$sshr', '$shr'],
-    ['$shift', '$shr'],
-    ['$shiftx', '$shr'],
-    ['$logic_and', '$and'],
-    ['$logic_or', '$or'],
-    ['$dffe', '$dff'],
-    ['$adff', '$dff'],
-    ['$dlatch', '$dff']]);
+    ['$not', 'Not'],
+    ['$and', 'And'],
+    ['$nand', 'Nand'],
+    ['$or', 'Or'],
+    ['$nor', 'Nor'],
+    ['$xor', 'Xor'],
+    ['$xnor', 'Xnor'],
+    ['$reduce_and', 'AndReduce'],
+    ['$reduce_nand', 'NandReduce'],
+    ['$reduce_or', 'OrReduce'],
+    ['$reduce_nor', 'NorReduce'],
+    ['$reduce_xor', 'XorReduce'],
+    ['$reduce_xnor', 'XnorReduce'],
+    ['$reduce_bool', 'OrReduce'],
+    ['$logic_not', 'NorReduce'],
+    ['$repeater', 'Repeater'],
+    ['$shl', 'ShiftLeft'],
+    ['$shr', 'ShiftRight'],
+    ['$lt', 'Lt'],
+    ['$le', 'Le'],
+    ['$eq', 'Eq'],
+    ['$ne', 'Ne'],
+    ['$gt', 'Gt'],
+    ['$ge', 'Ge'],
+    ['$constant', 'Constant'],
+    ['$neg', 'Negation'],
+    ['$pos', 'UnaryPlus'],
+    ['$add', 'Addition'],
+    ['$sub', 'Subtraction'],
+    ['$mul', 'Multiplication'],
+    ['$div', 'Division'],
+    ['$mod', 'Modulo'],
+    ['$pow', 'Power'],
+    ['$mux', 'Mux'],
+    ['$pmux', 'Mux1Hot'],
+    ['$dff', 'Dff'],
+    ['$mem', 'Memory'],
+    ['$fsm', 'FSM'],
+    ['$clock', 'Clock'],
+    ['$button', 'Button'],
+    ['$lamp', 'Lamp'],
+    ['$numdisplay', 'NumDisplay'],
+    ['$numentry', 'NumEntry'],
+    ['$input', 'Input'],
+    ['$output', 'Output'],
+    ['$busgroup', 'BusGroup'],
+    ['$busungroup', 'BusUngroup'],
+    ['$busslice', 'BusSlice'],
+    ['$zeroextend', 'ZeroExtend'],
+    ['$signextend', 'SignExtend'],
+    ['$reduce_bool', 'OrReduce'],
+    ['$eqx', 'Eq'],
+    ['$nex', 'Ne'],
+    ['$sshl', 'ShiftLeft'],
+    ['$sshr', 'ShiftRight'],
+    ['$shift', 'ShiftRight'],
+    ['$shiftx', 'ShiftRight'],
+    ['$logic_and', 'And'],
+    ['$logic_or', 'Or'],
+    ['$dffe', 'Dff'],
+    ['$adff', 'Dff'],
+    ['$dlatch', 'Dff']]);
 const gate_negations = new Map([
-    ['$and', '$nand'],
-    ['$nand', '$and'],
-    ['$nor', '$or'],
-    ['$or', '$nor'],
-    ['$xor', '$xnor'],
-    ['$xnor', '$xor'],
-    ['$reduce_and', '$reduce_nand'],
-    ['$reduce_nand', '$reduce_and'],
-    ['$reduce_nor', '$reduce_or'],
-    ['$reduce_or', '$reduce_nor'],
-    ['$reduce_xor', '$reduce_xnor'],
-    ['$reduce_xnor', '$reduce_xor']]);
+    ['And', 'Nand'],
+    ['Nand', 'And'],
+    ['Nor', 'Or'],
+    ['Or', 'Nor'],
+    ['Xor', 'Xnor'],
+    ['Xnor', 'Xor'],
+    ['AndReduce', 'NandReduce'],
+    ['NandReduce', 'AndReduce'],
+    ['NorReduce', 'OrReduce'],
+    ['OrReduce', 'NorReduce'],
+    ['XorReduce', 'XnorReduce'],
+    ['XnorReduce', 'XorReduce']]);
 
 function chunkArray(a, chunk_size){
     let results = [];
@@ -178,7 +228,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
     }
     function add_busgroup(nbits, groups) {
         const dname = add_device({
-            celltype: '$busgroup',
+            type: 'BusGroup',
             groups: groups.map(g => g.length)
         });
         add_net_source(nbits, dname, 'out');
@@ -248,8 +298,11 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
     }
     // Add inputs/outputs
     for (const [pname, port] of Object.entries(mod.ports)) {
+        const dir = port.direction == "input" ? "Input" :
+                    port.direction == "output" ? "Output" : 
+                    undefined;
         const dname = add_device({
-            celltype: '$' + port.direction,
+            type: dir,
             label: pname,
             net: pname,
             order: n,
@@ -269,8 +322,12 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
     for (const [cname, cell] of Object.entries(mod.cells)) {
         const dev = {
             label: cname,
-            celltype: gate_subst.has(cell.type) ? gate_subst.get(cell.type) : cell.type
+            type: gate_subst.get(cell.type)
         };
+        if (dev.type == undefined) {
+            dev.type = 'Subcircuit';
+            dev.celltype = cell.type;
+        }
         const dname = add_device(dev);
         function match_port(con, sig, sz) {
             if (con.length > sz)
@@ -284,7 +341,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
                     // handled generally in the grouping phase,
                     // but it's hard to add sign extensions there
                     const extname = add_device({
-                        celltype: sig ? '$signextend' : '$zeroextend',
+                        type: sig ? 'SignExtend' : 'ZeroExtend',
                         extend: { input: ccon.length, output: con.length }
                     });
                     add_net_target(ccon, extname, 'in');
@@ -297,7 +354,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
                 const ccon = con.slice();
                 con.splice(1);
                 const extname = add_device({
-                    celltype: '$zeroextend',
+                    type: 'ZeroExtend',
                     extend: { input: con.length, output: ccon.length }
                 });
                 add_net_source(ccon, extname, 'out');
@@ -362,9 +419,9 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
                 zero_extend_output(cell.connections.Y);
                 if (dev.bits == 1) {
                     if (['$reduce_xnor', '$logic_not'].includes(cell.type))
-                        dev.celltype = '$not';
+                        dev.type = 'Not';
                     else
-                        dev.celltype = '$repeater';
+                        dev.type = 'Repeater';
                 }
                 break;
             case '$eq': case '$ne': case '$lt': case '$le': case 'gt': case 'ge':
@@ -398,7 +455,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
                     const ccon = con.slice();
                     con.splice(0, con.length, gen_bitname());
                     const extname = add_device({
-                        celltype: '$reduce_or',
+                        type: 'OrReduce',
                         bits: ccon.length
                     });
                     add_net_source(con, extname, 'out');
@@ -570,7 +627,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
             }
             default:
         }
-        if (dev.celltype == '$dff') {
+        if (dev.type == 'Dff') {
             // find register initial value, if exists
             // Yosys puts initial values in net attributes; there can be many for single actual net!
             const nms = netnames.get(cell.connections.Q);
@@ -614,7 +671,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
             // infer zero-extend
             const ilen = nbits.length - groups.slice(-1)[0].length;
             const dname = add_device({
-                celltype: '$zeroextend',
+                type: 'ZeroExtend',
                 extend: { output: nbits.length, input: ilen }
             });
             const zbits = nbits.slice(0, ilen);
@@ -631,7 +688,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
             continue;
         const dname = add_device({
 //            label: String(val), // TODO
-            celltype: '$constant',
+            type: 'Constant',
             constant: nbits.slice().reverse().join('')
         });
         add_net_source(nbits, dname, 'out');
@@ -649,7 +706,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
                                       info.port == bitinfos[0].port));
         const cconn = devnets.get(bitinfos[0].id).get(bitinfos[0].port);
         const dname = add_device({
-            celltype: '$busslice',
+            type: 'BusSlice',
             slice: {
                 first: bitinfos[0].num,
                 count: bitinfos.length,
@@ -667,7 +724,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
         const srcdev = mout.devices[net.source.id];
         const tgtdev = mout.devices[net.targets[0].id];
         // eliminate repeaters, TODO nets with multiple targets
-        if (tgtdev.celltype == '$repeater') {
+        if (tgtdev.type == 'Repeater') {
             delete mout.devices[net.targets[0].id];
             const t_nbits = devnets.get(net.targets[0].id).get('out');
             const t_net = nets.get(t_nbits);
@@ -675,8 +732,8 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
             nets.delete(nbits);
         }
         // eliminate negations
-        if (tgtdev.celltype == '$not' && gate_negations.has(srcdev.celltype)) {
-            srcdev.celltype = gate_negations.get(srcdev.celltype);
+        if (tgtdev.type == 'Not' && gate_negations.has(srcdev.type)) {
+            srcdev.type = gate_negations.get(srcdev.type);
             delete mout.devices[net.targets[0].id];
             const t_nbits = devnets.get(net.targets[0].id).get('out');
             const t_net = nets.get(t_nbits);
@@ -753,14 +810,14 @@ async function process(filenames, dirname, options) {
 function io_ui(output) {
     for (const [name, dev] of Object.entries(output.devices)) {
         // use clock for clocky named inputs
-        if (dev.celltype == '$input' && dev.bits == 1 && (dev.label == 'clk' || dev.label == 'clock')) {
-            dev.celltype = '$clock';
+        if (dev.type == 'Input' && dev.bits == 1 && (dev.label == 'clk' || dev.label == 'clock')) {
+            dev.type = 'Clock';
             dev.propagation = 100;
         }
-        if (dev.celltype == '$input')
-            dev.celltype = dev.bits == 1 ? '$button' : '$numentry';
-        if (dev.celltype == '$output')
-            dev.celltype = dev.bits == 1 ? '$lamp' : '$numdisplay';
+        if (dev.type == 'Input')
+            dev.type = dev.bits == 1 ? 'Button' : 'NumEntry';
+        if (dev.type == 'Output')
+            dev.type = dev.bits == 1 ? 'Lamp' : 'NumDisplay';
     }
 }
 
