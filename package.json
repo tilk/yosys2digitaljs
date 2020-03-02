@@ -10,10 +10,10 @@
   "license": "BSD-2-Clause",
   "dependencies": {
     "3vl": "^0.2.3",
-    "big-integer": "^1.6.44",
-    "hashmap": "^2.3.0",
+    "big-integer": "^1.6.48",
+    "hashmap": "^2.4.0",
     "minimist": "^1.2.0",
-    "sanitize-filename": "^1.6.2",
+    "sanitize-filename": "^1.6.3",
     "tmp-promise": "^1.1.0",
     "topsort": "^0.0.2"
   },
