@@ -772,7 +772,7 @@ async function process(filenames, dirname, options) {
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
     let obj = undefined;
     const yosys_result = await promisify(child_process.exec)(
-        'yosys -p "hierarchy; proc' + optimize_simp + fsmpass + '; memory -nomap; dff2dffe; wreduce -memx' + 
+        'yosys -p "hierarchy -auto-top; proc' + optimize_simp + fsmpass + '; memory -nomap; dff2dffe; wreduce -memx' + 
         optimize + '" -o "' + tmpjson + '" ' + 
         filenames.map(cmd => '"' + cmd.replace(/(["\s'$`\\])/g,'\\$1') + '"').join(' '),
         {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000})
