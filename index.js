@@ -768,6 +768,7 @@ async function process(filenames, dirname, options) {
                   : options.fsm ? "; fsm" + fsmexpand
                   : "";
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
+    let obj = undefined;
     const yosys_result = await promisify(child_process.exec)(
         'yosys -p "hierarchy; proc' + optimize_simp + fsmpass + '; memory -nomap; dff2dffe; wreduce -memx' + 
         optimize + '" -o "' + tmpjson + '" ' + 
@@ -784,7 +785,7 @@ async function process(filenames, dirname, options) {
                 yosys_result.message = "Yosys failed";
             throw yosys_result;
         }
-        const obj = JSON.parse(fs.readFileSync(tmpjson, 'utf8'));
+        obj = JSON.parse(fs.readFileSync(tmpjson, 'utf8'));
         await promisify(fs.unlink)(tmpjson);
         const portmaps = order_ports(obj);
         const out = yosys_to_digitaljs(obj, portmaps);
@@ -801,6 +802,7 @@ async function process(filenames, dirname, options) {
             yosys_stderr: yosys_result.stderr
         };
     } catch (exc) {
+        if (obj !== undefined) exc.yosys_output = obj;
         exc.yosys_stdout = yosys_result.stdout;
         exc.yosys_stderr = yosys_result.stderr;
         throw exc;

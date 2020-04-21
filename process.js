@@ -3,6 +3,7 @@
 
 const fs = require('fs');
 const argv = require('minimist')(process.argv.slice(2), {boolean: true});
+const util = require('util');
 
 function read_files(l) {
     const ret = {};
@@ -42,7 +43,7 @@ result.then(res => {
     }
     if (argv.yosys_output) {
         console.log('/*');
-        console.log(JSON.stringify(res.yosys_output, null, argv.noindent ? 0 : 2));
+        console.log(util.inspect(res.yosys_output, {showHidden: false, depth: null, colors: process.stdout.isTTY && process.stdout.hasColors()}));
         console.log('*/');
     }
     const output = res.output;
@@ -54,7 +55,7 @@ result.then(res => {
 })
 .catch(res => {
     console.error('Yosys failed!');
-    console.error(res);
+    console.error(util.inspect(res, {showHidden: false, depth: null, colors: process.stdout.isTTY && process.stdout.hasColors()}));
     process.exit(1);
 });
 
