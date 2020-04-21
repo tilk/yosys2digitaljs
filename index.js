@@ -167,15 +167,15 @@ function decode_json_constant(param, bits) {
         return param;
 }
 
-function yosys_to_digitaljs(data, portmaps) {
+function yosys_to_digitaljs(data, portmaps, options = {}) {
     const out = {};
     for (const [name, mod] of Object.entries(data.modules)) {
-        out[name] = yosys_to_digitaljs_mod(name, mod, portmaps);
+        out[name] = yosys_to_digitaljs_mod(name, mod, portmaps, options);
     }
     return out
 }
 
-function yosys_to_digitaljs_mod(name, mod, portmaps) {
+function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
     function constbit(bit) {
         return bit == '0' || bit == '1' || bit == 'x';
     }
@@ -225,6 +225,8 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
     }
     function add_device(dev) {
         const dname = gen_name();
+        if (options.propagation !== undefined)
+            dev.propagation = options.propagation;
         mout.devices[dname] = dev;
         return dname;
     }
@@ -761,8 +763,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
     return mout;
 }
 
-async function process(filenames, dirname, options) {
-    options = options || {};
+async function process(filenames, dirname, options = {}) {
     const optimize_simp = options.optimize ? "; opt" : "; opt_clean";
     const optimize = options.optimize ? "; opt -full" : "; opt_clean";
     const fsmexpand = options.fsmexpand ? " -expand" : "";
@@ -790,7 +791,7 @@ async function process(filenames, dirname, options) {
         obj = JSON.parse(fs.readFileSync(tmpjson, 'utf8'));
         await promisify(fs.unlink)(tmpjson);
         const portmaps = order_ports(obj);
-        const out = yosys_to_digitaljs(obj, portmaps);
+        const out = yosys_to_digitaljs(obj, portmaps, options);
         const toporder = topsort(module_deps(obj));
         toporder.pop();
         const toplevel = toporder.pop();

@@ -2,7 +2,10 @@
 "use strict";
 
 const fs = require('fs');
-const argv = require('minimist')(process.argv.slice(2), {boolean: true});
+const argv = require('minimist')(
+    process.argv.slice(2), 
+    {boolean: ["optimize", "fsm", "yosys_out", "yosys_output", "html", "no_io_ui", "tmpdir", "noindent"]}
+);
 const util = require('util');
 
 function read_files(l) {
@@ -30,6 +33,7 @@ const yosys2digitaljs = require('./index.js');
 const opts = {};
 if (argv.optimize) opts.optimize = true;
 if (argv.fsm) opts.fsm = argv.fsm;
+if (argv.propagation !== undefined) opts.propagation = Number(argv.propagation);
 const result = argv.tmpdir ? yosys2digitaljs.process_files(read_files(argv._), opts) : yosys2digitaljs.process(argv._, null, opts);
 result.then(res => {
     if (argv.html) {
