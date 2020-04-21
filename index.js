@@ -201,6 +201,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
         return nets.get(k);
     }
     function add_net_source(k, d, p, primary) {
+        if (k.length == 0) return; // for unconnected ports
         const net = get_net(k);
         if(net.source !== undefined) {
             // multiple sources driving one net, disallowed in digitaljs
@@ -213,6 +214,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps) {
         devnets.get(d).set(p, k);
     }
     function add_net_target(k, d, p) {
+        if (k.length == 0) return; // for unconnected ports
         const net = get_net(k);
         net.targets.push({ id: d, port: p });
         devnets.get(d).set(p, k);
