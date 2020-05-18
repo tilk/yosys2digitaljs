@@ -428,7 +428,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
                         dev.type = 'Repeater';
                 }
                 break;
-            case '$eq': case '$ne': case '$lt': case '$le': case 'gt': case 'ge':
+            case '$eq': case '$ne': case '$lt': case '$le': case '$gt': case '$ge':
             case '$eqx': case '$nex':
                 dev.bits = {
                     in1: cell.connections.A.length,
