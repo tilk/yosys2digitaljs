@@ -205,6 +205,8 @@ function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
         const net = get_net(k);
         if(net.source !== undefined) {
             // multiple sources driving one net, disallowed in digitaljs
+            console.log(k);
+            console.log(net);
             throw Error('Multiple sources driving net: ' + net.name);
         }
         net.source = { id: d, port: p };
@@ -231,6 +233,8 @@ function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
         return dname;
     }
     function add_busgroup(nbits, groups) {
+        if (get_net(nbits).source !== undefined)
+            return; // the bits were already grouped
         const dname = add_device({
             type: 'BusGroup',
             groups: groups.map(g => g.length)
