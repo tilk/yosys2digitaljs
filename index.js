@@ -311,7 +311,6 @@ function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
                     undefined;
         const dname = add_device({
             type: dir,
-            label: pname,
             net: pname,
             order: n,
             bits: port.bits.length
@@ -818,6 +817,9 @@ async function process(filenames, dirname, options = {}) {
 
 function io_ui(output) {
     for (const [name, dev] of Object.entries(output.devices)) {
+        if (dev.type == 'Input' || dev.type == 'Output') {
+            dev.label = dev.net;
+        }
         // use clock for clocky named inputs
         if (dev.type == 'Input' && dev.bits == 1 && (dev.label == 'clk' || dev.label == 'clock')) {
             dev.type = 'Clock';
