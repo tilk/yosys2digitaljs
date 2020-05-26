@@ -754,13 +754,23 @@ function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
             console.warn('Undriven net in ' + name + ': ' + nbits);
             continue;
         }
+        let first = true;
         for (const target in net.targets) {
             const conn = {
                 to: net.targets[target],
                 from: net.source
             };
             if (net.name) conn.name = net.name;
+            if (!first && mout.devices[conn.from.id].type == "Constant") {
+                // replicate constants for better clarity
+                const dname = add_device({
+                    type: 'Constant',
+                    constant: mout.devices[conn.from.id].constant
+                });
+                conn.from = {id: dname, port: 'out'};
+            }
             mout.connectors.push(conn);
+            first = false;
         }
     }
     return mout;
