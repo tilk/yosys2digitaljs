@@ -1,6 +1,6 @@
 {
   "name": "yosys2digitaljs",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Export Yosys netlists to a logic simulator",
   "main": "index.js",
   "scripts": {
@@ -9,7 +9,7 @@
   "author": "Marek Materzok",
   "license": "BSD-2-Clause",
   "dependencies": {
-    "3vl": "^0.3.4",
+    "3vl": "^0.3.5",
     "big-integer": "^1.6.48",
     "hashmap": "^2.4.0",
     "minimist": "^1.2.5",
