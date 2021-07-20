@@ -723,31 +723,6 @@ function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
         add_net_source(nbits, dname, 'out');
         add_net_target(cconn, dname, 'in');
     }
-    // Make some simplifications in the graph
-    // TODO multiple passes, less ad-hoc
-    for (const [nbits, net] of nets.entries()) {
-        if (net.source === undefined || net.targets.length != 1 ||
-            net.source.id == net.targets[0].id) continue;
-        const srcdev = mout.devices[net.source.id];
-        const tgtdev = mout.devices[net.targets[0].id];
-        // eliminate repeaters, TODO nets with multiple targets
-        if (tgtdev.type == 'Repeater') {
-            delete mout.devices[net.targets[0].id];
-            const t_nbits = devnets.get(net.targets[0].id).get('out');
-            const t_net = nets.get(t_nbits);
-            t_net.source = net.source;
-            nets.delete(nbits);
-        }
-        // eliminate negations
-        if (tgtdev.type == 'Not' && gate_negations.has(srcdev.type)) {
-            srcdev.type = gate_negations.get(srcdev.type);
-            delete mout.devices[net.targets[0].id];
-            const t_nbits = devnets.get(net.targets[0].id).get('out');
-            const t_net = nets.get(t_nbits);
-            t_net.source = net.source;
-            nets.delete(nbits);
-        }
-    }
     // Generate connections between devices
     for (const [nbits, net] of nets.entries()) {
         if (net.source === undefined) {
