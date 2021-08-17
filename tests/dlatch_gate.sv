@@ -4,7 +4,7 @@ module d_latch(
   output q, nq
 );
 
-  logic s, r;
+  logic s, r, nd;
 
   nor g1(q, r, nq);
   nor g2(nq, s, q);

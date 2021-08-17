@@ -5,7 +5,7 @@ module cycleadder
   input rst,
   input en,
   input [WIDTH-1:0] A,
-  output [WIDTH-1:0] O
+  output logic [WIDTH-1:0] O
 );
 
   always_ff @(posedge clk)
