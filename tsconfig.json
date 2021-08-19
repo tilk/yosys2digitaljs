@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "node",
+    "module": "es2015",
+    "target": "es2017",
+    "declaration": true,
+    "allowSyntheticDefaultImports": true,
+    "outDir": "./dist",
+    "lib": ["es2017"],
+    "types": ["node"]
+  },
+  "include": [
+    "src/**/*"
+  ]
+}

@@ -2,8 +2,13 @@
   "name": "yosys2digitaljs",
   "version": "0.3.0",
   "description": "Export Yosys netlists to a logic simulator",
-  "main": "index.js",
+  "main": "dist/index",
+  "types": "dist/index.d.ts",
   "scripts": {
+    "prepare": "npm run build; npm run doc",
+    "cjs": "tsc -m commonjs",
+    "build": "npm run cjs",
+    "doc": "typedoc --out dist/docs src/",
     "test": "./run_tests.sh"
   },
   "author": "Marek Materzok",
@@ -24,5 +29,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/tilk/yosys2digitaljs.git"
+  },
+  "devDependencies": {
+    "@types/node": "^16.6.2",
+    "typescript": "^4.3.5"
   }
 }

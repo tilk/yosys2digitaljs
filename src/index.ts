@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 "use strict";
 
-const tmp = require('tmp-promise');
-const child_process = require('child_process');
-const assert = require('assert');
-const topsort = require('topsort');
-const fs = require('fs');
-const sanitize = require("sanitize-filename");
-const path = require('path');
-const HashMap = require('hashmap');
-const bigInt = require('big-integer');
-const {promisify} = require('util');
-const {Vector3vl, Mem3vl} = require('3vl');
+import * as tmp from 'tmp-promise';
+import * as child_process from 'child_process';
+import * as assert from 'assert';
+import * as fs from 'fs';
+import sanitize from "sanitize-filename";
+import * as path from 'path';
+import * as HashMap from 'hashmap';
+import * as bigInt from 'big-integer';
+import {promisify} from 'util';
+import {Vector3vl, Mem3vl} from '3vl';
+
+const topsort: <T>(edges:T[][], options?:{continueOnCircularDependency: boolean}) => T[] = require('topsort');
 
 const unary_gates = new Set([
     '$not', '$neg', '$pos', '$reduce_and', '$reduce_or', '$reduce_xor',
@@ -99,6 +100,87 @@ const gate_negations = new Map([
     ['XorReduce', 'XnorReduce'],
     ['XnorReduce', 'XorReduce']]);
 
+type DigitaljsMemReadPort = {
+    clock_polarity?: boolean,
+    enable_polarity?: boolean,
+    transparent?: boolean
+};
+
+type DigitaljsMemWritePort = {
+    clock_polarity?: boolean,
+    enable_polarity?: boolean
+};
+
+type DigitaljsDevice = {
+    type: string,
+    [key: string]: any
+};
+
+type DigitaljsPort = {
+    id: string,
+    port: string
+};
+
+type DigitaljsConnector = {
+    from: DigitaljsPort,
+    to: DigitaljsPort,
+    name?: string
+};
+
+type DigitaljsModule = {
+    devices: { [key: string]: DigitaljsDevice },
+    connectors: DigitaljsConnector[]
+};
+
+type DigitaljsTopModule = DigitaljsModule & {
+    subcircuits: { [key: string]: DigitaljsModule }
+}
+
+type YosysPort = {
+    direction: 'input' | 'output' | 'inout',
+    bits: any
+};
+
+type YosysCell = {
+    hide_name: 0 | 1,
+    type: string,
+    parameters: any,
+    attributes: { [key: string]: string },
+    port_directions: any,
+    connections: any
+};
+
+type YosysNet = {
+    hide_name: 0 | 1,
+    bits: any,
+    attributes: { [key: string]: string }
+};
+
+type YosysModule = {
+    ports: { [key: string]: YosysPort },
+    cells: { [key: string]: YosysCell },
+    netnames: { [key: string]: YosysNet }
+};
+
+type YosysOutput = {
+    modules: { [key: string]: YosysModule }
+};
+
+type Yosys2DigitaljsOptions = {
+    propagation?: number,
+    optimize?: boolean,
+    fsmexpand?: boolean,
+    fsm?: boolean | "nomap",
+    timeout?: number
+};
+
+type Yosys2DigitaljsOutput = {
+    output?: DigitaljsTopModule,
+    yosys_output?: any,
+    yosys_stdout: string,
+    yosys_stderr: string
+};
+
 function chunkArray(a, chunk_size){
     let results = [];
 	let ca = a.splice();
@@ -110,8 +192,8 @@ function chunkArray(a, chunk_size){
     return results;
 }
 
-function module_deps(data) {
-    const out = [];
+function module_deps(data: YosysOutput) {
+    const out: [string, string | number][] = [];
     for (const [name, mod] of Object.entries(data.modules)) {
         out.push([name, 1/0]);
         for (const cname in mod.cells) {
@@ -123,7 +205,7 @@ function module_deps(data) {
     return out;
 }
 
-function order_ports(data) {
+function order_ports(data: YosysOutput) {
     const unmap = {A: 'in', Y: 'out'};
     const binmap = {A: 'in1', B: 'in2', Y: 'out'};
     const out = {
@@ -167,7 +249,7 @@ function decode_json_constant(param, bits) {
         return param;
 }
 
-function yosys_to_digitaljs(data, portmaps, options = {}) {
+function yosys_to_digitaljs(data: YosysOutput, portmaps, options = {}): {[key: string]: DigitaljsModule} {
     const out = {};
     for (const [name, mod] of Object.entries(data.modules)) {
         out[name] = yosys_to_digitaljs_mod(name, mod, portmaps, options);
@@ -175,7 +257,7 @@ function yosys_to_digitaljs(data, portmaps, options = {}) {
     return out
 }
 
-function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
+function yosys_to_digitaljs_mod(name: string, mod: YosysModule, portmaps, options: Yosys2DigitaljsOptions = {}): DigitaljsModule {
     function constbit(bit) {
         return bit == '0' || bit == '1' || bit == 'x';
     }
@@ -200,7 +282,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
         }
         return nets.get(k);
     }
-    function add_net_source(k, d, p, primary) {
+    function add_net_source(k, d, p, primary: boolean = false) {
         if (k.length == 0) return; // for unconnected ports
         const net = get_net(k);
         if(net.source !== undefined) {
@@ -225,7 +307,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
         devices: {},
         connectors: []
     }
-    function add_device(dev) {
+    function add_device(dev : DigitaljsDevice): string {
         const dname = gen_name();
         if (options.propagation !== undefined)
             dev.propagation = options.propagation;
@@ -327,7 +409,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
     }
     // Add gates
     for (const [cname, cell] of Object.entries(mod.cells)) {
-        const dev = {
+        const dev : DigitaljsDevice = {
             label: cname,
             type: gate_subst.get(cell.type)
         };
@@ -560,16 +642,17 @@ function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
                 dev.trans_table = [];
                 for (let i = 0; i < cell.parameters.TRANS_NUM; i++) {
                     let base = i * step;
-                    const o = {};
                     const f = (sz) => {
                         const ret = tt.slice(base, base + sz);
                         base += sz;
                         return ret;
                     };
-                    o.state_in = parseInt(f(cell.parameters.STATE_NUM_LOG2), 2);
-                    o.ctrl_in = f(cell.parameters.CTRL_IN_WIDTH).replace(/-/g, 'x');
-                    o.state_out = parseInt(f(cell.parameters.STATE_NUM_LOG2), 2);
-                    o.ctrl_out = f(cell.parameters.CTRL_OUT_WIDTH);
+                    const o = {
+                        state_in: parseInt(f(cell.parameters.STATE_NUM_LOG2), 2),
+                        ctrl_in: f(cell.parameters.CTRL_IN_WIDTH).replace(/-/g, 'x'),
+                        state_out: parseInt(f(cell.parameters.STATE_NUM_LOG2), 2),
+                        ctrl_out: f(cell.parameters.CTRL_OUT_WIDTH)
+                    };
                     dev.trans_table.push(o);
                 }
                 break;
@@ -608,7 +691,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
                     dev.memdata = memdata.toJSON();
                 }
                 for (const k of Array(cell.parameters.RD_PORTS).keys()) {
-                    const port = {
+                    const port: DigitaljsMemReadPort = {
                     };
                     if (rden[k]) {
                         port.clock_polarity = Boolean(rdpol[k]);
@@ -620,7 +703,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
                     dev.rdports.push(port);
                 }
                 for (const k of Array(cell.parameters.WR_PORTS).keys()) {
-                    const port = {
+                    const port: DigitaljsMemWritePort = {
                     };
                     if (wren[k]) {
                         port.clock_polarity = Boolean(wrpol[k]);
@@ -731,7 +814,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
         }
         let first = true;
         for (const target in net.targets) {
-            const conn = {
+            const conn: DigitaljsConnector = {
                 to: net.targets[target],
                 from: net.source
             };
@@ -751,7 +834,7 @@ function yosys_to_digitaljs_mod(name, mod, portmaps, options = {}) {
     return mout;
 }
 
-async function process(filenames, dirname, options = {}) {
+export async function process(filenames: string[], dirname?: string, options: Yosys2DigitaljsOptions = {}): Promise<Yosys2DigitaljsOutput> {
     const optimize_simp = options.optimize ? "; opt" : "; opt_clean";
     const optimize = options.optimize ? "; opt -full" : "; opt_clean";
     const fsmexpand = options.fsmexpand ? " -expand" : "";
@@ -760,7 +843,7 @@ async function process(filenames, dirname, options = {}) {
                   : "";
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
     let obj = undefined;
-    const yosys_result = await promisify(child_process.exec)(
+    const yosys_result: {stdout: string, stderr: string, killed?: boolean, code?: number} = await promisify(child_process.exec)(
         'yosys -p "hierarchy -auto-top; proc' + optimize_simp + fsmpass + '; memory -nomap; dff2dffe; wreduce -memx' + 
         optimize + '" -o "' + tmpjson + '" ' + 
         filenames.map(cmd => '"' + cmd.replace(/(["\s'$`\\])/g,'\\$1') + '"').join(' '),
@@ -783,8 +866,7 @@ async function process(filenames, dirname, options = {}) {
         const toporder = topsort(module_deps(obj));
         toporder.pop();
         const toplevel = toporder.pop();
-        const output = out[toplevel];
-        output.subcircuits = {};
+        const output: DigitaljsTopModule = { subcircuits: {}, ... out[toplevel] };
         for (const x of toporder) output.subcircuits[x] = out[x];
         return {
             output: output,
@@ -800,7 +882,7 @@ async function process(filenames, dirname, options = {}) {
     }
 }
 
-function io_ui(output) {
+export function io_ui(output: DigitaljsModule) {
     for (const [name, dev] of Object.entries(output.devices)) {
         if (dev.type == 'Input' || dev.type == 'Output') {
             dev.label = dev.net;
@@ -817,7 +899,7 @@ function io_ui(output) {
     }
 }
 
-async function process_files(data, options) {
+export async function process_files(data: {[key: string]: string}, options: Yosys2DigitaljsOptions): Promise<Yosys2DigitaljsOutput> {
     const dir = await tmp.dir();
     const names = [];
     try {
@@ -835,7 +917,7 @@ async function process_files(data, options) {
     }
 }
 
-async function process_sv(text) {
+export async function process_sv(text: string): Promise<Yosys2DigitaljsOutput> {
     const tmpsv = await tmp.file({ postfix: '.sv' });
     try {
         await promisify(fs.write)(tmpsv.fd, text);
@@ -845,9 +927,4 @@ async function process_sv(text) {
         tmpsv.cleanup();
     }
 }
-
-exports.process = process;
-exports.process_files = process_files;
-exports.process_sv = process_sv;
-exports.io_ui = io_ui;
 

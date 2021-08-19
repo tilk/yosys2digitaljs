@@ -29,7 +29,7 @@ if (argv._.length === 0) {
     console.error('No Verilog files passed!');
     process.exit(1);
 }
-const yosys2digitaljs = require('./index.js');
+const yosys2digitaljs = require('./dist/index.js');
 const opts = {};
 if (argv.optimize) opts.optimize = true;
 if (argv.fsm) opts.fsm = argv.fsm;
