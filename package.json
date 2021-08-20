@@ -5,10 +5,9 @@
   "main": "dist/index",
   "types": "dist/index.d.ts",
   "scripts": {
-    "prepare": "npm run build; npm run doc",
+    "prepare": "npm run build",
     "cjs": "tsc -m commonjs",
     "build": "npm run cjs",
-    "doc": "typedoc --out dist/docs src/",
     "test": "./run_tests.sh"
   },
   "author": "Marek Materzok",

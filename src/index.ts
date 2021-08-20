@@ -5,7 +5,6 @@ import * as tmp from 'tmp-promise';
 import * as child_process from 'child_process';
 import * as assert from 'assert';
 import * as fs from 'fs';
-import sanitize from "sanitize-filename";
 import * as path from 'path';
 import * as HashMap from 'hashmap';
 import * as bigInt from 'big-integer';
@@ -13,6 +12,7 @@ import {promisify} from 'util';
 import {Vector3vl, Mem3vl} from '3vl';
 
 const topsort: <T>(edges:T[][], options?:{continueOnCircularDependency: boolean}) => T[] = require('topsort');
+const sanitize = require("sanitize-filename");
 
 const unary_gates = new Set([
     '$not', '$neg', '$pos', '$reduce_and', '$reduce_or', '$reduce_xor',
@@ -918,7 +918,7 @@ export async function verilator_lint(filenames: string[], dirname?: string, opti
     try {
         const output: LintMessage[] = [];
         const verilator_result: {stdout: string, stderr: string} = await promisify(child_process.exec)(
-            'verilator -lint-only -Wno-UNOPT -Wno-UNOPTFLAT ' + filenames.map(escape_filename).join(' '),
+            'verilator -lint-only -Wall -Wno-DECLFILENAME -Wno-UNOPT -Wno-UNOPTFLAT ' + filenames.map(escape_filename).join(' '),
             {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000})
             .catch(exc => exc);
         for (const line of verilator_result.stderr.split('\n')) {
@@ -1017,7 +1017,7 @@ export async function process_files(data: {[key: string]: string}, options: Opti
         return await process(names, dir.path, options);
     } finally {
         for (const name of Object.keys(data)) {
-            await promisify(fs.unlink)(path.resolve(dir.path, name));
+            await promisify(fs.unlink)(path.resolve(dir.path, name)).catch(exc => exc);
         }
         dir.cleanup();
     }
