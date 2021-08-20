@@ -217,14 +217,16 @@ type Options = {
     optimize?: boolean,
     fsmexpand?: boolean,
     fsm?: boolean | "nomap",
-    timeout?: number
+    timeout?: number,
+    lint?: boolean
 };
 
 type Output = {
     output?: Digitaljs.TopModule,
     yosys_output?: any,
     yosys_stdout: string,
-    yosys_stderr: string
+    yosys_stderr: string,
+    lint?: LintMessage[]
 };
 
 type Portmap = { [key: string]: string };
@@ -244,6 +246,14 @@ type BitInfo = {
     id: string,
     port: string,
     num: number
+};
+
+type LintMessage = {
+    type: string,
+    file: string,
+    line: number,
+    column: number,
+    message: string
 };
 
 function chunkArray(a, chunk_size){
@@ -898,6 +908,36 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
     return mout;
 }
 
+function escape_filename(cmd: string): string {
+    return '"' + cmd.replace(/(["\s'$`\\])/g,'\\$1') + '"';
+}
+        
+const verilator_re = /^%(Warning|Error)[^:]*: ([^:]*):([0-9]+):([0-9]+): (.*)$/;
+
+export async function verilator_lint(filenames: string[], dirname?: string, options: Options = {}): Promise<LintMessage[]> {
+    try {
+        const output: LintMessage[] = [];
+        const verilator_result: {stdout: string, stderr: string} = await promisify(child_process.exec)(
+            'verilator -lint-only -Wno-UNOPT -Wno-UNOPTFLAT ' + filenames.map(escape_filename).join(' '),
+            {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000})
+            .catch(exc => exc);
+        for (const line of verilator_result.stderr.split('\n')) {
+            const result = line.match(verilator_re);
+            if (result == null) continue;
+            output.push({
+                type: result[1],
+                file: path.basename(result[2]),
+                line: Number(result[3]),
+                column: Number(result[4]),
+                message: result[5]
+            });
+        }
+        return output;
+    } catch (exc) {
+        return null;
+    }
+}
+
 export async function process(filenames: string[], dirname?: string, options: Options = {}): Promise<Output> {
     const optimize_simp = options.optimize ? "; opt" : "; opt_clean";
     const optimize = options.optimize ? "; opt -full" : "; opt_clean";
@@ -909,8 +949,7 @@ export async function process(filenames: string[], dirname?: string, options: Op
     let obj = undefined;
     const yosys_result: {stdout: string, stderr: string, killed?: boolean, code?: number} = await promisify(child_process.exec)(
         'yosys -p "hierarchy -auto-top; proc' + optimize_simp + fsmpass + '; memory -nomap; dff2dffe; wreduce -memx' + 
-        optimize + '" -o "' + tmpjson + '" ' + 
-        filenames.map(cmd => '"' + cmd.replace(/(["\s'$`\\])/g,'\\$1') + '"').join(' '),
+        optimize + '" -o "' + tmpjson + '" ' + filenames.map(escape_filename).join(' '),
         {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000})
         .catch(exc => exc);
     try {
@@ -932,12 +971,15 @@ export async function process(filenames: string[], dirname?: string, options: Op
         const toplevel = toporder.pop();
         const output: Digitaljs.TopModule = { subcircuits: {}, ... out[toplevel] };
         for (const x of toporder) output.subcircuits[x] = out[x];
-        return {
+        const ret: Output = {
             output: output,
             yosys_output: obj,
             yosys_stdout: yosys_result.stdout,
             yosys_stderr: yosys_result.stderr
         };
+        if (options.lint)
+            ret.lint = await verilator_lint(filenames, dirname, options);
+        return ret;
     } catch (exc) {
         if (obj !== undefined) exc.yosys_output = obj;
         exc.yosys_stdout = yosys_result.stdout;
