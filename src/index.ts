@@ -152,22 +152,23 @@ namespace Yosys {
     };
 
     export type Parameters = {
-        WIDTH?: number,
-        A_WIDTH?: number,
-        B_WIDTH?: number,
-        S_WIDTH?: number,
-        Y_WIDTH?: number,
-        A_SIGNED?: 0 | 1,
-        B_SIGNED?: 0 | 1,
-        CLK_POLARITY?: 0 | 1,
-        EN_POLARITY?: 0 | 1,
-        ARST_POLARITY?: 0 | 1,
+        WIDTH?: JsonConstant,
+        A_WIDTH?: JsonConstant,
+        B_WIDTH?: JsonConstant,
+        S_WIDTH?: JsonConstant,
+        Y_WIDTH?: JsonConstant,
+        A_SIGNED?: JsonConstant,
+        B_SIGNED?: JsonConstant,
+        CLK_POLARITY?: JsonConstant,
+        EN_POLARITY?: JsonConstant,
+        ARST_POLARITY?: JsonConstant,
         ARST_VALUE: JsonConstant,
-        CTRL_IN_WIDTH?: number,
-        CTRL_OUT_WIDTH?: number,
-        TRANS_NUM?: number,
-        STATE_NUM_LOG2?: number,
-        STATE_RST?: number,
+        CTRL_IN_WIDTH?: JsonConstant,
+        CTRL_OUT_WIDTH?: JsonConstant,
+        TRANS_NUM?: JsonConstant,
+        STATE_NUM?: JsonConstant,
+        STATE_NUM_LOG2?: JsonConstant,
+        STATE_RST?: JsonConstant,
         RD_PORTS?: number,
         WR_PORTS?: number,
         RD_CLK_POLARITY?: JsonConstant,
@@ -312,6 +313,14 @@ function decode_json_bigint(param: string | number): bigInt.BigInteger {
     else assert(false);
 }
 
+function decode_json_number(param: Yosys.JsonConstant): number {
+    if (typeof param == 'string')
+        return Number.parseInt(param, 2);
+    else if (typeof param == 'number')
+        return param
+    else assert(false);
+}
+
 function decode_json_bigint_as_array(param: string | number): number[] {
     return decode_json_bigint(param).toArray(2).value;
 }
@@ -420,9 +429,9 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
         add_net_target(cell.connections.A, dname, 'in0');
         add_net_target(cell.connections.S.slice().reverse(), dname, 'sel');
         add_net_source(cell.connections.Y, dname, 'out', true);
-        for (const i of Array(cell.parameters.S_WIDTH).keys()) {
-            const p = (cell.parameters.S_WIDTH-i-1) * cell.parameters.WIDTH;
-            add_net_target(cell.connections.B.slice(p, p + cell.parameters.WIDTH),
+        for (const i of Array(decode_json_number(cell.parameters.S_WIDTH)).keys()) {
+            const p = (decode_json_number(cell.parameters.S_WIDTH)-i-1) * decode_json_number(cell.parameters.WIDTH);
+            add_net_target(cell.connections.B.slice(p, p + decode_json_number(cell.parameters.WIDTH)),
                 dname, 'in' + (i+1));
         }
     }
@@ -493,7 +502,8 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
             dev.celltype = cell.type;
         }
         const dname = add_device(dev);
-        function match_port(con: Net, sig: 0 | 1, sz: number) {
+        function match_port(con: Net, nsig: Yosys.JsonConstant, sz: number) {
+            const sig = decode_json_number(nsig);
             if (con.length > sz)
                 con.splice(sz);
             else if (con.length < sz) {
@@ -526,22 +536,22 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
             }
         }
         if (unary_gates.has(cell.type)) {
-                assert(cell.connections.A.length == cell.parameters.A_WIDTH);
-                assert(cell.connections.Y.length == cell.parameters.Y_WIDTH);
+                assert(cell.connections.A.length == decode_json_number(cell.parameters.A_WIDTH));
+                assert(cell.connections.Y.length == decode_json_number(cell.parameters.Y_WIDTH));
                 assert(cell.port_directions.A == 'input');
                 assert(cell.port_directions.Y == 'output');
         }
         if (binary_gates.has(cell.type)) {
-                assert(cell.connections.A.length == cell.parameters.A_WIDTH);
-                assert(cell.connections.B.length == cell.parameters.B_WIDTH);
-                assert(cell.connections.Y.length == cell.parameters.Y_WIDTH);
+                assert(cell.connections.A.length == decode_json_number(cell.parameters.A_WIDTH));
+                assert(cell.connections.B.length == decode_json_number(cell.parameters.B_WIDTH));
+                assert(cell.connections.Y.length == decode_json_number(cell.parameters.Y_WIDTH));
                 assert(cell.port_directions.A == 'input');
                 assert(cell.port_directions.B == 'input');
                 assert(cell.port_directions.Y == 'output');
         }
         if (['$dff', '$dffe', '$adff', '$dlatch'].includes(cell.type)) {
-            assert(cell.connections.D.length == cell.parameters.WIDTH);
-            assert(cell.connections.Q.length == cell.parameters.WIDTH);
+            assert(cell.connections.D.length == decode_json_number(cell.parameters.WIDTH));
+            assert(cell.connections.Q.length == decode_json_number(cell.parameters.WIDTH));
             assert(cell.port_directions.D == 'input');
             assert(cell.port_directions.Q == 'output');
             if (cell.type != '$dlatch') {
@@ -555,7 +565,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                     in: cell.connections.A.length,
                     out: cell.connections.Y.length
                 };
-                dev.signed = Boolean(cell.parameters.A_SIGNED);
+                dev.signed = Boolean(decode_json_number(cell.parameters.A_SIGNED));
                 break;
             case '$not':
                 match_port(cell.connections.A, cell.parameters.A_SIGNED, cell.connections.Y.length);
@@ -568,8 +578,8 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                     out: cell.connections.Y.length
                 };
                 dev.signed = {
-                    in1: Boolean(cell.parameters.A_SIGNED),
-                    in2: Boolean(cell.parameters.B_SIGNED)
+                    in1: Boolean(decode_json_number(cell.parameters.A_SIGNED)),
+                    in2: Boolean(decode_json_number(cell.parameters.B_SIGNED))
                 }
                 break;
             case '$and': case '$or': case '$xor': case '$xnor':
@@ -633,89 +643,91 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 break;
             }
             case '$mux':
-                assert(cell.connections.A.length == cell.parameters.WIDTH);
-                assert(cell.connections.B.length == cell.parameters.WIDTH);
-                assert(cell.connections.Y.length == cell.parameters.WIDTH);
+                assert(cell.connections.A.length == decode_json_number(cell.parameters.WIDTH));
+                assert(cell.connections.B.length == decode_json_number(cell.parameters.WIDTH));
+                assert(cell.connections.Y.length == decode_json_number(cell.parameters.WIDTH));
                 assert(cell.port_directions.A == 'input');
                 assert(cell.port_directions.B == 'input');
                 assert(cell.port_directions.Y == 'output');
                 dev.bits = {
-                    in: cell.parameters.WIDTH,
+                    in: decode_json_number(cell.parameters.WIDTH),
                     sel: 1
                 };
                 break;
             case '$pmux':
-                assert(cell.connections.B.length == cell.parameters.WIDTH * cell.parameters.S_WIDTH);
-                assert(cell.connections.A.length == cell.parameters.WIDTH);
-                assert(cell.connections.S.length == cell.parameters.S_WIDTH);
-                assert(cell.connections.Y.length == cell.parameters.WIDTH);
+                assert(cell.connections.B.length == decode_json_number(cell.parameters.WIDTH) * decode_json_number(cell.parameters.S_WIDTH));
+                assert(cell.connections.A.length == decode_json_number(cell.parameters.WIDTH));
+                assert(cell.connections.S.length == decode_json_number(cell.parameters.S_WIDTH));
+                assert(cell.connections.Y.length == decode_json_number(cell.parameters.WIDTH));
                 assert(cell.port_directions.A == 'input');
                 assert(cell.port_directions.B == 'input');
                 assert(cell.port_directions.S == 'input');
                 assert(cell.port_directions.Y == 'output');
                 dev.bits = {
-                    in: cell.parameters.WIDTH,
-                    sel: cell.parameters.S_WIDTH
+                    in: decode_json_number(cell.parameters.WIDTH),
+                    sel: decode_json_number(cell.parameters.S_WIDTH)
                 };
                 break;
             case '$dff':
-                dev.bits = cell.parameters.WIDTH;
+                dev.bits = decode_json_number(cell.parameters.WIDTH);
                 dev.polarity = {
-                    clock: Boolean(cell.parameters.CLK_POLARITY)
+                    clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY))
                 };
                 break;
             case '$dffe':
                 assert(cell.connections.EN.length == 1);
                 assert(cell.port_directions.EN == 'input');
-                dev.bits = cell.parameters.WIDTH;
+                dev.bits = decode_json_number(cell.parameters.WIDTH);
                 dev.polarity = {
-                    clock: Boolean(cell.parameters.CLK_POLARITY),
-                    enable: Boolean(cell.parameters.EN_POLARITY)
+                    clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY)),
+                    enable: Boolean(decode_json_number(cell.parameters.EN_POLARITY))
                 };
                 break;
             case '$adff':
                 assert(cell.connections.ARST.length == 1);
                 assert(cell.port_directions.ARST == 'input');
-                dev.bits = cell.parameters.WIDTH;
+                dev.bits = decode_json_number(cell.parameters.WIDTH);
                 dev.polarity = {
-                    clock: Boolean(cell.parameters.CLK_POLARITY),
-                    arst: Boolean(cell.parameters.ARST_POLARITY)
+                    clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY)),
+                    arst: Boolean(decode_json_number(cell.parameters.ARST_POLARITY))
                 };
                 dev.arst_value = decode_json_constant(cell.parameters.ARST_VALUE, dev.bits);
                 break;
             case '$dlatch':
                 assert(cell.connections.EN.length == 1);
                 assert(cell.port_directions.EN == 'input');
-                dev.bits = cell.parameters.WIDTH;
+                dev.bits = decode_json_number(cell.parameters.WIDTH);
                 dev.polarity = {
-                    enable: Boolean(cell.parameters.EN_POLARITY)
+                    enable: Boolean(decode_json_number(cell.parameters.EN_POLARITY))
                 };
                 break;
             case '$fsm': {
                 assert(cell.connections.ARST.length == 1);
                 assert(cell.connections.CLK.length == 1);
-                assert(cell.connections.CTRL_IN.length == cell.parameters.CTRL_IN_WIDTH);
-                assert(cell.connections.CTRL_OUT.length == cell.parameters.CTRL_OUT_WIDTH);
-                const step = 2*cell.parameters.STATE_NUM_LOG2 
-                           + cell.parameters.CTRL_IN_WIDTH
-                           + cell.parameters.CTRL_OUT_WIDTH;
+                assert(cell.connections.CTRL_IN.length == decode_json_number(cell.parameters.CTRL_IN_WIDTH));
+                assert(cell.connections.CTRL_OUT.length == decode_json_number(cell.parameters.CTRL_OUT_WIDTH));
+                const TRANS_NUM = decode_json_number(cell.parameters.TRANS_NUM);
+                const STATE_NUM_LOG2 = decode_json_number(cell.parameters.STATE_NUM_LOG2);
+                const step = 2*STATE_NUM_LOG2 
+                           + decode_json_number(cell.parameters.CTRL_IN_WIDTH)
+                           + decode_json_number(cell.parameters.CTRL_OUT_WIDTH);
                 const tt = typeof(cell.parameters.TRANS_TABLE) == "number"
-                         ? Vector3vl.fromBin(bigInt(cell.parameters.TRANS_TABLE).toString(2), cell.parameters.TRANS_NUM * step).toBin() // workaround for yosys silliness
+                         ? Vector3vl.fromBin(bigInt(cell.parameters.TRANS_TABLE).toString(2), TRANS_NUM * step).toBin() // workaround for yosys silliness
                          : cell.parameters.TRANS_TABLE;
-                assert(tt.length == cell.parameters.TRANS_NUM * step);
+                assert(tt.length == TRANS_NUM * step);
                 dev.polarity = {
-                    clock: Boolean(cell.parameters.CLK_POLARITY),
-                    arst: Boolean(cell.parameters.ARST_POLARITY)
+                    clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY)),
+                    arst: Boolean(decode_json_number(cell.parameters.ARST_POLARITY))
                 };
                 dev.wirename = cell.parameters.NAME;
                 dev.bits = {
-                    in: cell.parameters.CTRL_IN_WIDTH,
-                    out: cell.parameters.CTRL_OUT_WIDTH
+                    in: decode_json_number(cell.parameters.CTRL_IN_WIDTH),
+                    out: decode_json_number(cell.parameters.CTRL_OUT_WIDTH)
                 };
-                dev.states = cell.parameters.STATE_NUM;
-                dev.init_state = cell.parameters.STATE_RST;
+                dev.states = decode_json_number(cell.parameters.STATE_NUM);
+                dev.init_state = decode_json_number(cell.parameters.STATE_RST);
                 dev.trans_table = [];
-                for (let i = 0; i < cell.parameters.TRANS_NUM; i++) {
+                for (let i = 0; i < TRANS_NUM; i++) {
                     let base = i * step;
                     const f = (sz) => {
                         const ret = tt.slice(base, base + sz);
@@ -723,10 +735,10 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                         return ret;
                     };
                     const o = {
-                        state_in: parseInt(f(cell.parameters.STATE_NUM_LOG2), 2),
-                        ctrl_in: f(cell.parameters.CTRL_IN_WIDTH).replace(/-/g, 'x'),
-                        state_out: parseInt(f(cell.parameters.STATE_NUM_LOG2), 2),
-                        ctrl_out: f(cell.parameters.CTRL_OUT_WIDTH)
+                        state_in: parseInt(f(STATE_NUM_LOG2), 2),
+                        ctrl_in: f(decode_json_number(cell.parameters.CTRL_IN_WIDTH)).replace(/-/g, 'x'),
+                        state_out: parseInt(f(STATE_NUM_LOG2), 2),
+                        ctrl_out: f(decode_json_number(cell.parameters.CTRL_OUT_WIDTH))
                     };
                     dev.trans_table.push(o);
                 }
@@ -735,13 +747,13 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
             case '$mem': {
                 assert(cell.connections.RD_EN.length == cell.parameters.RD_PORTS);
                 assert(cell.connections.RD_CLK.length == cell.parameters.RD_PORTS);
-                assert(cell.connections.RD_DATA.length == cell.parameters.RD_PORTS * cell.parameters.WIDTH);
+                assert(cell.connections.RD_DATA.length == cell.parameters.RD_PORTS * decode_json_number(cell.parameters.WIDTH));
                 assert(cell.connections.RD_ADDR.length == cell.parameters.RD_PORTS * cell.parameters.ABITS);
-                assert(cell.connections.WR_EN.length == cell.parameters.WR_PORTS * cell.parameters.WIDTH);
+                assert(cell.connections.WR_EN.length == cell.parameters.WR_PORTS * decode_json_number(cell.parameters.WIDTH));
                 assert(cell.connections.WR_CLK.length == cell.parameters.WR_PORTS);
-                assert(cell.connections.WR_DATA.length == cell.parameters.WR_PORTS * cell.parameters.WIDTH);
+                assert(cell.connections.WR_DATA.length == cell.parameters.WR_PORTS * decode_json_number(cell.parameters.WIDTH));
                 assert(cell.connections.WR_ADDR.length == cell.parameters.WR_PORTS * cell.parameters.ABITS);
-                dev.bits = cell.parameters.WIDTH;
+                dev.bits = decode_json_number(cell.parameters.WIDTH);
                 dev.abits = cell.parameters.ABITS;
                 dev.words = cell.parameters.SIZE;
                 dev.offset = cell.parameters.OFFSET;
@@ -948,7 +960,7 @@ export async function process(filenames: string[], dirname?: string, options: Op
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
     let obj = undefined;
     const yosys_result: {stdout: string, stderr: string, killed?: boolean, code?: number} = await promisify(child_process.exec)(
-        'yosys -p "hierarchy -auto-top; proc' + optimize_simp + fsmpass + '; memory -nomap; dff2dffe; wreduce -memx' + 
+        'yosys -p "hierarchy -auto-top; proc' + optimize_simp + fsmpass + '; memory -nomap; wreduce -memx' + 
         optimize + '" -o "' + tmpjson + '" ' + filenames.map(escape_filename).join(' '),
         {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000})
         .catch(exc => exc);

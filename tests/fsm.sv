@@ -1,6 +1,7 @@
 // Write your modules here!
 module fsm(input clk, rst, a, output logic b);
 
+  (* fsm_encoding = "auto" *)
   logic [1:0] state;
   
   localparam A = 2'b00;
