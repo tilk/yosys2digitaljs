@@ -61,6 +61,7 @@ const gate_subst = new Map([
     ['$pmux', 'Mux1Hot'],
     ['$dff', 'Dff'],
     ['$mem', 'Memory'],
+    ['$mem_v2', 'Memory'],
     ['$fsm', 'FSM'],
     ['$clock', 'Clock'],
     ['$button', 'Button'],
@@ -174,8 +175,8 @@ namespace Yosys {
         STATE_NUM?: JsonConstant,
         STATE_NUM_LOG2?: JsonConstant,
         STATE_RST?: JsonConstant,
-        RD_PORTS?: number,
-        WR_PORTS?: number,
+        RD_PORTS?: JsonConstant,
+        WR_PORTS?: JsonConstant,
         RD_CLK_POLARITY?: JsonConstant,
         RD_CLK_ENABLE?: JsonConstant,
         RD_CLK_TRANSPARENT?: JsonConstant,
@@ -816,24 +817,29 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 }
                 break;
             }
-            case '$mem': {
-                assert(cell.connections.RD_EN.length == cell.parameters.RD_PORTS);
-                assert(cell.connections.RD_CLK.length == cell.parameters.RD_PORTS);
-                assert(cell.connections.RD_DATA.length == cell.parameters.RD_PORTS * decode_json_number(cell.parameters.WIDTH));
-                assert(cell.connections.RD_ADDR.length == cell.parameters.RD_PORTS * cell.parameters.ABITS);
-                assert(cell.connections.WR_EN.length == cell.parameters.WR_PORTS * decode_json_number(cell.parameters.WIDTH));
-                assert(cell.connections.WR_CLK.length == cell.parameters.WR_PORTS);
-                assert(cell.connections.WR_DATA.length == cell.parameters.WR_PORTS * decode_json_number(cell.parameters.WIDTH));
-                assert(cell.connections.WR_ADDR.length == cell.parameters.WR_PORTS * cell.parameters.ABITS);
+            case '$mem':
+            case '$mem_v2': {
+                const RD_PORTS = decode_json_number(cell.parameters.RD_PORTS);
+                const WR_PORTS = decode_json_number(cell.parameters.WR_PORTS);
+                assert(cell.connections.RD_EN.length == RD_PORTS);
+                assert(cell.connections.RD_CLK.length == RD_PORTS);
+                assert(cell.connections.RD_DATA.length == RD_PORTS * decode_json_number(cell.parameters.WIDTH));
+                assert(cell.connections.RD_ADDR.length == RD_PORTS * decode_json_number(cell.parameters.ABITS));
+                assert(cell.connections.WR_EN.length == WR_PORTS * decode_json_number(cell.parameters.WIDTH));
+                assert(cell.connections.WR_CLK.length == WR_PORTS);
+                assert(cell.connections.WR_DATA.length == WR_PORTS * decode_json_number(cell.parameters.WIDTH));
+                assert(cell.connections.WR_ADDR.length == WR_PORTS * decode_json_number(cell.parameters.ABITS));
                 dev.bits = decode_json_number(cell.parameters.WIDTH);
-                dev.abits = cell.parameters.ABITS;
-                dev.words = cell.parameters.SIZE;
-                dev.offset = cell.parameters.OFFSET;
+                dev.abits = decode_json_number(cell.parameters.ABITS);
+                dev.words = decode_json_number(cell.parameters.SIZE);
+                dev.offset = decode_json_number(cell.parameters.OFFSET);
                 dev.rdports = [];
                 dev.wrports = [];
                 const rdpol = decode_json_bigint_as_array(cell.parameters.RD_CLK_POLARITY).reverse();
                 const rden  = decode_json_bigint_as_array(cell.parameters.RD_CLK_ENABLE).reverse();
-                const rdtr  = decode_json_bigint_as_array(cell.parameters.RD_TRANSPARENT).reverse();
+                const rdtr  = cell.type == "$mem" 
+                            ? decode_json_bigint_as_array(cell.parameters.RD_TRANSPARENT).reverse()
+                            : Array(RD_PORTS).fill(0); // TODO decode transparency mask
                 const wrpol = decode_json_bigint_as_array(cell.parameters.WR_CLK_POLARITY).reverse();
                 const wren  = decode_json_bigint_as_array(cell.parameters.WR_CLK_ENABLE).reverse();
                 const init  = typeof(cell.parameters.INIT) == 'number'
@@ -849,7 +855,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                     }
                     dev.memdata = memdata.toJSON();
                 }
-                for (const k of Array(cell.parameters.RD_PORTS).keys()) {
+                for (const k of Array(RD_PORTS).keys()) {
                     const port: Digitaljs.MemReadPort = {
                     };
                     if (rden[k]) {
@@ -861,7 +867,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                         port.transparent = true;
                     dev.rdports.push(port);
                 }
-                for (const k of Array(cell.parameters.WR_PORTS).keys()) {
+                for (const k of Array(WR_PORTS).keys()) {
                     const port: Digitaljs.MemWritePort = {
                     };
                     if (wren[k]) {
@@ -891,6 +897,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
         if (portmap) connect_device(dname, cell, portmap);
         else if (cell.type == '$pmux') connect_pmux(dname, cell);
         else if (cell.type == '$mem') connect_mem(dname, cell, dev);
+        else if (cell.type == '$mem_v2') connect_mem(dname, cell, dev);
         else throw Error('Invalid cell type: ' + cell.type);
     }
     // Group bits into nets for complex sources
