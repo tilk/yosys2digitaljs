@@ -350,6 +350,18 @@ function decode_json_constant(param: Yosys.JsonConstant, bits: number): string {
         return param;
 }
 
+function parse_source_positions(str: string): object[] {
+    const ret = [];
+    for (const entry of str.split('|')) {
+        const colonIdx = entry.lastIndexOf(':');
+        const name = entry.slice(0, colonIdx);
+        const pos = entry.slice(colonIdx+1);
+        const [from, to] = pos.split('-').map(s => s.split('.').map(v => Number(v))).map(([line, column]) => ({line, column}));
+        ret.push({name, from, to});
+    }
+    return ret;
+}
+
 function yosys_to_digitaljs(data: Yosys.Output, portmaps: Portmaps, options: Options = {}): {[key: string]: Digitaljs.Module} {
     const out = {};
     for (const [name, mod] of Object.entries(data.modules)) {
@@ -517,6 +529,9 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
         if (dev.type == undefined) {
             dev.type = 'Subcircuit';
             dev.celltype = cell.type;
+        }
+        if (typeof cell.attributes == 'object' && cell.attributes.src) {
+            dev.source_positions = parse_source_positions(cell.attributes.src);
         }
         const dname = add_device(dev);
         function match_port(con: Net, nsig: Yosys.JsonConstant, sz: number) {
