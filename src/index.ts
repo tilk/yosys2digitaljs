@@ -59,7 +59,6 @@ const gate_subst = new Map([
     ['$pow', 'Power'],
     ['$mux', 'Mux'],
     ['$pmux', 'Mux1Hot'],
-    ['$dff', 'Dff'],
     ['$mem', 'Memory'],
     ['$mem_v2', 'Memory'],
     ['$fsm', 'FSM'],
@@ -84,6 +83,7 @@ const gate_subst = new Map([
     ['$shiftx', 'ShiftRight'],
     ['$logic_and', 'And'],
     ['$logic_or', 'Or'],
+    ['$dff', 'Dff'],
     ['$dffe', 'Dff'],
     ['$adff', 'Dff'],
     ['$adffe', 'Dff'],
@@ -91,7 +91,10 @@ const gate_subst = new Map([
     ['$sdffe', 'Dff'],
     ['$sdffce', 'Dff'],
     ['$dlatch', 'Dff'],
-    ['$adlatch', 'Dff']]);
+    ['$adlatch', 'Dff'],
+    ['$sr', 'Dff'],
+    ['$dffsr', 'Dff'],
+    ['$dffsre', 'Dff']]);
 const gate_negations = new Map([
     ['And', 'Nand'],
     ['Nand', 'And'],
@@ -301,6 +304,9 @@ function order_ports(data: Yosys.Output): Portmaps {
         '$sdffce': {CLK: 'clk', EN: 'en', SRST: 'srst', D: 'in', Q: 'out'},
         '$dlatch': {EN: 'en', D: 'in', Q: 'out'},
         '$adlatch': {EN: 'en', ARST: 'arst', D: 'in', Q: 'out'},
+        '$dffsr': {CLK: 'clk', SET: 'set', CLR: 'clr', D: 'in', Q: 'out'},
+        '$dffsre': {CLK: 'clk', EN: 'en', SET: 'set', CLR: 'clr', D: 'in', Q: 'out'},
+        '$sr': {SET: 'set', CLR: 'clr', Q: 'out'},
         '$fsm': {ARST: 'arst', CLK: 'clk', CTRL_IN: 'in', CTRL_OUT: 'out'}
     };
     binary_gates.forEach((nm) => out[nm] = binmap);
@@ -560,7 +566,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 assert(cell.port_directions.B == 'input');
                 assert(cell.port_directions.Y == 'output');
         }
-        if (['$dff', '$dffe', '$adff', '$adffe', '$sdff', '$sdffe', '$sdffce', '$dlatch', '$adlatch'].includes(cell.type)) {
+        if (['$dff', '$dffe', '$adff', '$adffe', '$sdff', '$sdffe', '$sdffce', '$dlatch', '$adlatch', '$dffsr', '$dffsre'].includes(cell.type)) {
             assert(cell.connections.D.length == decode_json_number(cell.parameters.WIDTH));
             assert(cell.connections.Q.length == decode_json_number(cell.parameters.WIDTH));
             assert(cell.port_directions.D == 'input');
@@ -569,6 +575,12 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 assert(cell.connections.CLK.length == 1);
                 assert(cell.port_directions.CLK == 'input');
             }
+        }
+        if (['$dffsr', '$dffsre'].includes(cell.type)) {
+            assert(cell.connections.SET.length == decode_json_number(cell.parameters.WIDTH));
+            assert(cell.connections.CLR.length == decode_json_number(cell.parameters.WIDTH));
+            assert(cell.port_directions.SET == 'input');
+            assert(cell.port_directions.CLR == 'input');
         }
         switch (cell.type) {
             case '$neg': case '$pos':
@@ -773,6 +785,35 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                     arst: Boolean(decode_json_number(cell.parameters.ARST_POLARITY))
                 };
                 dev.arst_value = decode_json_constant(cell.parameters.ARST_VALUE, dev.bits);
+                break;
+            case '$dffsr':
+                dev.bits = decode_json_number(cell.parameters.WIDTH);
+                dev.polarity = {
+                    clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY)),
+                    set: Boolean(decode_json_number(cell.parameters.SET_POLARITY)),
+                    clr: Boolean(decode_json_number(cell.parameters.CLR_POLARITY))
+                };
+                break;
+            case '$dffsre':
+                assert(cell.connections.EN.length == 1);
+                assert(cell.port_directions.EN == 'input');
+                dev.bits = decode_json_number(cell.parameters.WIDTH);
+                dev.polarity = {
+                    clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY)),
+                    enable: Boolean(decode_json_number(cell.parameters.EN_POLARITY)),
+                    set: Boolean(decode_json_number(cell.parameters.SET_POLARITY)),
+                    clr: Boolean(decode_json_number(cell.parameters.CLR_POLARITY))
+                };
+                break;
+            case '$sr':
+                assert(cell.connections.Q.length == decode_json_number(cell.parameters.WIDTH));
+                assert(cell.port_directions.Q == 'output');
+                dev.no_data = true;
+                dev.bits = decode_json_number(cell.parameters.WIDTH);
+                dev.polarity = {
+                    set: Boolean(decode_json_number(cell.parameters.SET_POLARITY)),
+                    clr: Boolean(decode_json_number(cell.parameters.CLR_POLARITY))
+                };
                 break;
             case '$fsm': {
                 assert(cell.connections.ARST.length == 1);

@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Support for Yosys 0.10 cells `$adffe`, `$sdff`, `$sdffe`, `$sdffce`, `$adlatch`
+- Support for Yosys 0.10 cells `$adffe`, `$sdff`, `$sdffe`, `$sdffce`, `$adlatch`, `$sr`, `$dffsr`, `$dffsre`
 
 ### Changed
 
