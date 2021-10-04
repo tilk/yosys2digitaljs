@@ -114,7 +114,14 @@ namespace Digitaljs {
     export type MemReadPort = {
         clock_polarity?: boolean,
         enable_polarity?: boolean,
-        transparent?: boolean
+        arst_polarity?: boolean,
+        srst_polarity?: boolean,
+        enable_srst?: boolean,
+        transparent?: boolean | boolean[],
+        collision?: boolean | boolean[],
+        init_value?: string,
+        arst_value?: string,
+        srst_value?: string
     };
     
     export type MemWritePort = {
@@ -150,6 +157,8 @@ namespace Digitaljs {
 };
 
 namespace Yosys {
+
+    export type BitChar = '0' | '1' | 'x';
 
     export type Bit = number | '0' | '1' | 'x';
 
@@ -342,10 +351,10 @@ function decode_json_bigint_as_array(param: string | number): number[] {
     return decode_json_bigint(param).toArray(2).value;
 }
 
-function decode_json_constant(param: Yosys.JsonConstant, bits: number): string {
+function decode_json_constant(param: Yosys.JsonConstant, bits: number, fill : Yosys.BitChar = '0'): string {
     if (typeof param == 'number')
         return bigInt(param).toArray(2).value.map(String).reverse()
-            .concat(Array(bits).fill('0')).slice(0, bits).reverse().join('');
+            .concat(Array(bits).fill(fill)).slice(0, bits).reverse().join('');
     else
         return param;
 }
@@ -885,6 +894,10 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 assert(cell.connections.WR_CLK.length == WR_PORTS);
                 assert(cell.connections.WR_DATA.length == WR_PORTS * decode_json_number(cell.parameters.WIDTH));
                 assert(cell.connections.WR_ADDR.length == WR_PORTS * decode_json_number(cell.parameters.ABITS));
+                if (cell.type == "$mem_v2") {
+                    assert(cell.connections.RD_ARST.length == RD_PORTS);
+                    assert(cell.connections.RD_SRST.length == RD_PORTS);
+                }
                 dev.bits = decode_json_number(cell.parameters.WIDTH);
                 dev.abits = decode_json_number(cell.parameters.ABITS);
                 dev.words = decode_json_number(cell.parameters.SIZE);
@@ -893,14 +906,22 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 dev.wrports = [];
                 const rdpol = decode_json_bigint_as_array(cell.parameters.RD_CLK_POLARITY).reverse();
                 const rden  = decode_json_bigint_as_array(cell.parameters.RD_CLK_ENABLE).reverse();
-                const rdtr  = cell.type == "$mem" 
-                            ? decode_json_bigint_as_array(cell.parameters.RD_TRANSPARENT).reverse()
-                            : Array(RD_PORTS).fill(0); // TODO decode transparency mask
+                const rdtr  = cell.type == "$mem_v2" 
+                            ? []
+                            : decode_json_bigint_as_array(cell.parameters.RD_TRANSPARENT).reverse();
                 const wrpol = decode_json_bigint_as_array(cell.parameters.WR_CLK_POLARITY).reverse();
                 const wren  = decode_json_bigint_as_array(cell.parameters.WR_CLK_ENABLE).reverse();
                 const init  = typeof(cell.parameters.INIT) == 'number'
-                    ? bigInt(cell.parameters.INIT).toArray(2).value.map(String).reverse()
-                    : cell.parameters.INIT.split('').reverse();
+                            ? bigInt(cell.parameters.INIT).toArray(2).value.map(String).reverse()
+                            : cell.parameters.INIT.split('').reverse();
+                const v2_feature = (param) => cell.type == "$mem_v2" ? decode_json_bigint_as_array(param).reverse() : [];
+                const v2_feature_const = (param, size) => cell.type == "$mem_v2" ? decode_json_constant(param, size) : "";
+                const rdtrmask  = v2_feature(cell.parameters.RD_TRANSPARENCY_MASK);
+                const rdcolmask = v2_feature(cell.parameters.RD_COLLISION_X_MASK);
+                const rdensrst  = v2_feature(cell.parameters.RD_CE_OVER_SRST);
+                const rdinit    = v2_feature_const(cell.parameters.RD_INIT_VALUE, dev.bits * RD_PORTS);
+                const rdarst    = v2_feature_const(cell.parameters.RD_ARST_VALUE, dev.bits * RD_PORTS);
+                const rdsrst    = v2_feature_const(cell.parameters.RD_SRST_VALUE, dev.bits * RD_PORTS);
                 if (cell.parameters.INIT) {
                     const l = init.slice(-1)[0] == 'x' ? 'x' : '0';
                     const memdata = new Mem3vl(dev.bits, dev.words);
@@ -921,6 +942,34 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                     };
                     if (rdtr[k])
                         port.transparent = true;
+                    if (cell.type == "$mem_v2") {
+                        if (rdensrst[k])
+                            port.enable_srst = true;
+                        function mk_init(s: string, f: (v: string) => void) {
+                            const v = s.slice(dev.bits * k, dev.bits * (k+1));
+                            if (!v.split('').every(c => c == 'x'))
+                                f(v);
+                        };
+                        mk_init(rdinit, v => port.init_value = v);
+                        if (cell.connections.RD_ARST[k] != '0') {
+                            port.arst_polarity = true;
+                            mk_init(rdarst, v => port.arst_value = v);
+                        }
+                        if (cell.connections.RD_SRST[k] != '0') {
+                            port.srst_polarity = true;
+                            mk_init(rdsrst, v => port.srst_value = v);
+                        }
+                        function mk_mask(s: number[], f: (v: boolean | boolean[]) => void) {
+                            const v = Array(WR_PORTS).fill(0);
+                            s.slice(WR_PORTS * k, WR_PORTS * (k+1)).map((c, i) => { v[i] = c });
+                            if (v.every(c => c))
+                                f(true);
+                            else if (v.some(c => c))
+                                f(v.map(c => Boolean(c)));
+                        }
+                        mk_mask(rdtrmask, v => port.transparent = v);
+                        mk_mask(rdcolmask, v => port.collision = v);
+                    }
                     dev.rdports.push(port);
                 }
                 for (const k of Array(WR_PORTS).keys()) {
