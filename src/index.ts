@@ -111,6 +111,17 @@ const gate_negations = new Map([
 
 namespace Digitaljs {
 
+    export type FilePosition = {
+        line: number,
+        column: number
+    };
+
+    export type SourcePosition = {
+        name: string,
+        from: FilePosition,
+        to: FilePosition
+    };
+
     export type MemReadPort = {
         clock_polarity?: boolean,
         enable_polarity?: boolean,
@@ -132,6 +143,7 @@ namespace Digitaljs {
     
     export type Device = {
         type: string,
+        source_positions?: SourcePosition[],
         [key: string]: any
     };
     
@@ -143,7 +155,8 @@ namespace Digitaljs {
     export type Connector = {
         from: Port,
         to: Port,
-        name?: string
+        name?: string,
+        source_positions?: SourcePosition[]
     };
     
     export type Module = {
@@ -259,7 +272,8 @@ type Net = Bit[];
 type NetInfo = {
     source: undefined | Digitaljs.Port,
     targets: Digitaljs.Port[],
-    name: undefined | string
+    name: undefined | string,
+    source_positions: Digitaljs.SourcePosition[]
 };
 
 type BitInfo = {
@@ -360,7 +374,7 @@ function decode_json_constant(param: Yosys.JsonConstant, bits: number, fill : Yo
         return param;
 }
 
-function parse_source_positions(str: string): object[] {
+function parse_source_positions(str: string): Digitaljs.SourcePosition[] {
     const ret = [];
     for (const entry of str.split('|')) {
         const colonIdx = entry.lastIndexOf(':');
@@ -385,7 +399,8 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
         return bit == '0' || bit == '1' || bit == 'x';
     }
     const nets = new HashMap<Net, NetInfo>();
-    const netnames = new HashMap();
+    const netnames = new HashMap<Net, string[]>();
+    const netsrc = new HashMap<Net, Digitaljs.SourcePosition[]>();
     const bits = new Map<Bit, BitInfo>();
     const devnets = new Map<string, Map<string, Net>>();
     let n = 0, pn = 0;
@@ -401,7 +416,8 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
         // create net if does not exist yet
         if (!nets.has(k)) {
             const nms = netnames.get(k);
-            nets.set(k, {source: undefined, targets: [], name: nms ? nms[0] : undefined});
+            const src = netsrc.get(k);
+            nets.set(k, {source: undefined, targets: [], name: nms ? nms[0] : undefined, source_positions: src || []});
         }
         return nets.get(k);
     }
@@ -516,6 +532,15 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
             netnames.set(data.bits, l);
         }
         l.push(nname);
+        if (typeof data.attributes == 'object' && data.attributes.src) {
+            let l = netsrc.get(data.bits);
+            if (l === undefined) {
+                l = [];
+                netsrc.set(data.bits, l);
+            }
+            const positions = parse_source_positions(data.attributes.src);
+            l.push(...positions);
+        }
     }
     // Add inputs/outputs
     for (const [pname, port] of Object.entries(mod.ports)) {
@@ -1101,6 +1126,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 from: net.source
             };
             if (net.name) conn.name = net.name;
+            if (net.source_positions) conn.source_positions = net.source_positions;
             if (!first && mout.devices[conn.from.id].type == "Constant") {
                 // replicate constants for better clarity
                 const dname = add_device({
