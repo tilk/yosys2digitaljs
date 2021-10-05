@@ -126,7 +126,8 @@ namespace Digitaljs {
     
     export type MemWritePort = {
         clock_polarity?: boolean,
-        enable_polarity?: boolean
+        enable_polarity?: boolean,
+        no_bit_enable?: boolean
     };
     
     export type Device = {
@@ -484,6 +485,10 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 add_net_target([cell.connections.RD_CLK[k]], dname, portname + "clk");
             if ('enable_polarity' in port)
                 add_net_target([cell.connections.RD_EN[k]], dname, portname + "en");
+            if ('arst_polarity' in port)
+                add_net_target([cell.connections.RD_ARST[k]], dname, portname + "arst");
+            if ('srst_polarity' in port)
+                add_net_target([cell.connections.RD_SRST[k]], dname, portname + "srst");
         }
         for (const [k, port] of dev.wrports.entries()) {
             const portname = "wr" + k;
@@ -493,9 +498,13 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 dname, portname + "data");
             if ('clock_polarity' in port)
                 add_net_target([cell.connections.WR_CLK[k]], dname, portname + "clk");
-            if ('enable_polarity' in port)
-                add_net_target(cell.connections.WR_EN.slice(dev.bits * k, dev.bits * (k+1)),
-                    dname, portname + "en");
+            if ('enable_polarity' in port) {
+                if (port.no_bit_enable)
+                    add_net_target([cell.connections.WR_EN[dev.bits * k]], dname, portname + "en");
+                else
+                    add_net_target(cell.connections.WR_EN.slice(dev.bits * k, dev.bits * (k+1)),
+                        dname, portname + "en");
+            }
         }
     }
     // Find net names
@@ -977,9 +986,12 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                     };
                     if (wren[k]) {
                         port.clock_polarity = Boolean(wrpol[k]);
-                        if (cell.connections.WR_EN.slice(dev.bits * k, dev.bits * (k+1))
-                                .some(z => z != '1'))
+                        const wr_en_connections = cell.connections.WR_EN.slice(dev.bits * k, dev.bits * (k+1));
+                        if (wr_en_connections.some(z => z != '1')) {
                             port.enable_polarity = true;
+                            if (wr_en_connections.every(z => z == wr_en_connections[0]))
+                                port.no_bit_enable = true;
+                        }
                     };
                     dev.wrports.push(port);
                 }
