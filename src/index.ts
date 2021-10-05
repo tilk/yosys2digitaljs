@@ -661,8 +661,8 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                     in2: cell.connections.B.length
                 };
                 dev.signed = {
-                    in1: Boolean(cell.parameters.A_SIGNED),
-                    in2: Boolean(cell.parameters.B_SIGNED)
+                    in1: Boolean(decode_json_number(cell.parameters.A_SIGNED)),
+                    in2: Boolean(decode_json_number(cell.parameters.B_SIGNED))
                 };
                 zero_extend_output(cell.connections.Y);
                 break;
@@ -674,9 +674,9 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                     out: cell.connections.Y.length
                 };
                 dev.signed = {
-                    in1: Boolean(cell.parameters.A_SIGNED),
-                    in2: Boolean(cell.parameters.B_SIGNED && ['$shift', '$shiftx'].includes(cell.type)),
-                    out: Boolean(cell.parameters.A_SIGNED && ['$sshl', '$sshr'].includes(cell.type))
+                    in1: Boolean(decode_json_number(cell.parameters.A_SIGNED)),
+                    in2: Boolean(decode_json_number(cell.parameters.B_SIGNED) && ['$shift', '$shiftx'].includes(cell.type)),
+                    out: Boolean(decode_json_number(cell.parameters.A_SIGNED) && ['$sshl', '$sshr'].includes(cell.type))
                 };
                 dev.fillx = cell.type == '$shiftx';
                 break;
