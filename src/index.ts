@@ -94,7 +94,9 @@ const gate_subst = new Map([
     ['$adlatch', 'Dff'],
     ['$sr', 'Dff'],
     ['$dffsr', 'Dff'],
-    ['$dffsre', 'Dff']]);
+    ['$dffsre', 'Dff'],
+    ['$aldff', 'Dff'],
+    ['$aldffe', 'Dff']]);
 const gate_negations = new Map([
     ['And', 'Nand'],
     ['Nand', 'And'],
@@ -330,6 +332,8 @@ function order_ports(data: Yosys.Output): Portmaps {
         '$adlatch': {EN: 'en', ARST: 'arst', D: 'in', Q: 'out'},
         '$dffsr': {CLK: 'clk', SET: 'set', CLR: 'clr', D: 'in', Q: 'out'},
         '$dffsre': {CLK: 'clk', EN: 'en', SET: 'set', CLR: 'clr', D: 'in', Q: 'out'},
+        '$aldff': {CLK: 'clk', ALOAD: 'aload', AD: 'ain', D: 'in', Q: 'out'},
+        '$aldffe': {CLK: 'clk', EN: 'en', ALOAD: 'aload', AD: 'ain', D: 'in', Q: 'out'},
         '$sr': {SET: 'set', CLR: 'clr', Q: 'out'},
         '$fsm': {ARST: 'arst', CLK: 'clk', CTRL_IN: 'in', CTRL_OUT: 'out'}
     };
@@ -624,7 +628,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 assert(cell.port_directions.B == 'input');
                 assert(cell.port_directions.Y == 'output');
         }
-        if (['$dff', '$dffe', '$adff', '$adffe', '$sdff', '$sdffe', '$sdffce', '$dlatch', '$adlatch', '$dffsr', '$dffsre'].includes(cell.type)) {
+        if (['$dff', '$dffe', '$adff', '$adffe', '$sdff', '$sdffe', '$sdffce', '$dlatch', '$adlatch', '$dffsr', '$dffsre', '$aldff', '$aldffe'].includes(cell.type)) {
             assert(cell.connections.D.length == decode_json_number(cell.parameters.WIDTH));
             assert(cell.connections.Q.length == decode_json_number(cell.parameters.WIDTH));
             assert(cell.port_directions.D == 'input');
@@ -633,6 +637,18 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 assert(cell.connections.CLK.length == 1);
                 assert(cell.port_directions.CLK == 'input');
             }
+        }
+        if (['$dffe', '$adffe', '$sdffe', '$sdffce', '$dffsre', '$aldffe', '$dlatch', '$adlatch'].includes(cell.type)) {
+            assert(cell.connections.EN.length == 1);
+            assert(cell.port_directions.EN == 'input');
+        }
+        if (['$adff', '$adffe', '$adlatch'].includes(cell.type)) {
+            assert(cell.connections.ARST.length == 1);
+            assert(cell.port_directions.ARST == 'input');
+        }
+        if (['$sdff', '$sdffe', '$sdffce'].includes(cell.type)) {
+            assert(cell.connections.SRST.length == 1);
+            assert(cell.port_directions.SRST == 'input');
         }
         if (['$dffsr', '$dffsre'].includes(cell.type)) {
             assert(cell.connections.SET.length == decode_json_number(cell.parameters.WIDTH));
@@ -756,17 +772,28 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 };
                 break;
             case '$dffe':
-                assert(cell.connections.EN.length == 1);
-                assert(cell.port_directions.EN == 'input');
                 dev.bits = decode_json_number(cell.parameters.WIDTH);
                 dev.polarity = {
                     clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY)),
                     enable: Boolean(decode_json_number(cell.parameters.EN_POLARITY))
                 };
                 break;
+            case '$aldff':
+                dev.bits = decode_json_number(cell.parameters.WIDTH);
+                dev.polarity = {
+                    clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY)),
+                    aload: Boolean(decode_json_number(cell.parameters.ALOAD_POLARITY))
+                };
+                break;
+            case '$aldffe':
+                dev.bits = decode_json_number(cell.parameters.WIDTH);
+                dev.polarity = {
+                    clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY)),
+                    enable: Boolean(decode_json_number(cell.parameters.EN_POLARITY)),
+                    aload: Boolean(decode_json_number(cell.parameters.ALOAD_POLARITY))
+                };
+                break;
             case '$adff':
-                assert(cell.connections.ARST.length == 1);
-                assert(cell.port_directions.ARST == 'input');
                 dev.bits = decode_json_number(cell.parameters.WIDTH);
                 dev.polarity = {
                     clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY)),
@@ -775,8 +802,6 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 dev.arst_value = decode_json_constant(cell.parameters.ARST_VALUE, dev.bits);
                 break;
             case '$sdff':
-                assert(cell.connections.SRST.length == 1);
-                assert(cell.port_directions.SRST == 'input');
                 dev.bits = decode_json_number(cell.parameters.WIDTH);
                 dev.polarity = {
                     clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY)),
@@ -785,10 +810,6 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 dev.srst_value = decode_json_constant(cell.parameters.SRST_VALUE, dev.bits);
                 break;
             case '$adffe':
-                assert(cell.connections.ARST.length == 1);
-                assert(cell.port_directions.ARST == 'input');
-                assert(cell.connections.EN.length == 1);
-                assert(cell.port_directions.EN == 'input');
                 dev.bits = decode_json_number(cell.parameters.WIDTH);
                 dev.polarity = {
                     clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY)),
@@ -798,10 +819,6 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 dev.arst_value = decode_json_constant(cell.parameters.ARST_VALUE, dev.bits);
                 break;
             case '$sdffe':
-                assert(cell.connections.SRST.length == 1);
-                assert(cell.port_directions.SRST == 'input');
-                assert(cell.connections.EN.length == 1);
-                assert(cell.port_directions.EN == 'input');
                 dev.bits = decode_json_number(cell.parameters.WIDTH);
                 dev.polarity = {
                     clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY)),
@@ -811,10 +828,6 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 dev.srst_value = decode_json_constant(cell.parameters.SRST_VALUE, dev.bits);
                 break;
             case '$sdffce':
-                assert(cell.connections.SRST.length == 1);
-                assert(cell.port_directions.SRST == 'input');
-                assert(cell.connections.EN.length == 1);
-                assert(cell.port_directions.EN == 'input');
                 dev.bits = decode_json_number(cell.parameters.WIDTH);
                 dev.polarity = {
                     clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY)),
@@ -825,18 +838,12 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 dev.srst_value = decode_json_constant(cell.parameters.SRST_VALUE, dev.bits);
                 break;
             case '$dlatch':
-                assert(cell.connections.EN.length == 1);
-                assert(cell.port_directions.EN == 'input');
                 dev.bits = decode_json_number(cell.parameters.WIDTH);
                 dev.polarity = {
                     enable: Boolean(decode_json_number(cell.parameters.EN_POLARITY))
                 };
                 break;
             case '$adlatch':
-                assert(cell.connections.EN.length == 1);
-                assert(cell.port_directions.EN == 'input');
-                assert(cell.connections.ARST.length == 1);
-                assert(cell.port_directions.ARST == 'input');
                 dev.bits = decode_json_number(cell.parameters.WIDTH);
                 dev.polarity = {
                     enable: Boolean(decode_json_number(cell.parameters.EN_POLARITY)),
@@ -853,8 +860,6 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 };
                 break;
             case '$dffsre':
-                assert(cell.connections.EN.length == 1);
-                assert(cell.port_directions.EN == 'input');
                 dev.bits = decode_json_number(cell.parameters.WIDTH);
                 dev.polarity = {
                     clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY)),
