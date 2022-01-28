@@ -1177,18 +1177,6 @@ export async function verilator_lint(filenames: string[], dirname?: string, opti
     }
 }
 
-export function yosys2digitaljs(obj: Yosys.Output, options: Options = {}): Digitaljs.TopModule {
-    const portmaps = order_ports(obj);
-    const out = yosys_to_digitaljs(obj, portmaps, options);
-    const toporder = topsort(module_deps(obj));
-    toporder.pop();
-    const toplevel = toporder.pop();
-    const output: Digitaljs.TopModule = { subcircuits: {}, ... out[toplevel] };
-    for (const x of toporder)
-        output.subcircuits[x] = out[x];
-    return output;
-}
-
 export async function process(filenames: string[], dirname?: string, options: Options = {}): Promise<Output> {
     const optimize_simp = options.optimize ? "; opt" : "; opt_clean";
     const optimize = options.optimize ? "; opt -full" : "; opt_clean";
@@ -1215,7 +1203,13 @@ export async function process(filenames: string[], dirname?: string, options: Op
         }
         obj = JSON.parse(fs.readFileSync(tmpjson, 'utf8'));
         await promisify(fs.unlink)(tmpjson);
-        const output = yosys2digitaljs(obj, options);
+        const portmaps = order_ports(obj);
+        const out = yosys_to_digitaljs(obj, portmaps, options);
+        const toporder = topsort(module_deps(obj));
+        toporder.pop();
+        const toplevel = toporder.pop();
+        const output: Digitaljs.TopModule = { subcircuits: {}, ... out[toplevel] };
+        for (const x of toporder) output.subcircuits[x] = out[x];
         const ret: Output = {
             output: output,
             yosys_output: obj,
