@@ -247,8 +247,11 @@ namespace Yosys {
 
 };
 
-type Options = {
+type ConvertOptions = {
     propagation?: number,
+};
+
+type Options = ConvertOptions & {
     optimize?: boolean,
     fsmexpand?: boolean,
     fsm?: boolean | "nomap",
@@ -390,7 +393,7 @@ function parse_source_positions(str: string): Digitaljs.SourcePosition[] {
     return ret;
 }
 
-function yosys_to_digitaljs(data: Yosys.Output, portmaps: Portmaps, options: Options = {}): {[key: string]: Digitaljs.Module} {
+function yosys_to_digitaljs(data: Yosys.Output, portmaps: Portmaps, options: ConvertOptions = {}): {[key: string]: Digitaljs.Module} {
     const out = {};
     for (const [name, mod] of Object.entries(data.modules)) {
         out[name] = yosys_to_digitaljs_mod(name, mod, portmaps, options);
@@ -398,7 +401,7 @@ function yosys_to_digitaljs(data: Yosys.Output, portmaps: Portmaps, options: Opt
     return out
 }
 
-function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portmaps, options: Options = {}): Digitaljs.Module {
+function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portmaps, options: ConvertOptions = {}): Digitaljs.Module {
     function constbit(bit: Bit) {
         return bit == '0' || bit == '1' || bit == 'x';
     }
@@ -1177,7 +1180,7 @@ export async function verilator_lint(filenames: string[], dirname?: string, opti
     }
 }
 
-export function yosys2digitaljs(obj: Yosys.Output, options: Options = {}): Digitaljs.TopModule {
+export function yosys2digitaljs(obj: Yosys.Output, options: ConvertOptions = {}): Digitaljs.TopModule {
     const portmaps = order_ports(obj);
     const out = yosys_to_digitaljs(obj, portmaps, options);
     const toporder = topsort(module_deps(obj));
@@ -1250,7 +1253,7 @@ export function io_ui(output: Digitaljs.Module) {
     }
 }
 
-export async function process_files(data: {[key: string]: string}, options: Options): Promise<Output> {
+export async function process_files(data: {[key: string]: string}, options: Options = {}): Promise<Output> {
     const dir = await tmp.dir();
     const names = [];
     try {
@@ -1268,12 +1271,12 @@ export async function process_files(data: {[key: string]: string}, options: Opti
     }
 }
 
-export async function process_sv(text: string): Promise<Output> {
+export async function process_sv(text: string, options: Options = {}): Promise<Output> {
     const tmpsv = await tmp.file({ postfix: '.sv' });
     try {
         await promisify(fs.write)(tmpsv.fd, text);
         await promisify(fs.close)(tmpsv.fd);
-        return await process([tmpsv.path]);
+        return await process([tmpsv.path], undefined, options);
     } finally {
         tmpsv.cleanup();
     }
