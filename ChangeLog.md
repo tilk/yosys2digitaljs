@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Support for Yosys 0.11 cells `$aldff`, `$aldffe`
+- Added a function `yosys2digitaljs` for converting a Yosys JSON output obtained elsewhere, without running Yosys locally
 
 ## [0.5.0] -- 2021-10-06
 
