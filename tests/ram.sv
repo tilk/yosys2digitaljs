@@ -1,5 +1,5 @@
 // Simple RAM
-module rom
+module ram
 #(parameter AWIDTH = 4, DWIDTH = 4)(
   input clk,
   input [AWIDTH-1:0] addr,
