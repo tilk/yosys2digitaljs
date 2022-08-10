@@ -8,10 +8,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as HashMap from 'hashmap';
 import * as bigInt from 'big-integer';
-import {promisify} from 'util';
-import {Vector3vl, Mem3vl} from '3vl';
+import { promisify } from 'util';
+import { Vector3vl, Mem3vl } from '3vl';
 
-const topsort: <T>(edges:T[][], options?:{continueOnCircularDependency: boolean}) => T[] = require('topsort');
+const topsort: <T>(edges: T[][], options?: { continueOnCircularDependency: boolean }) => T[] = require('topsort');
 const sanitize = require("sanitize-filename");
 
 const unary_gates = new Set([
@@ -136,36 +136,36 @@ namespace Digitaljs {
         arst_value?: string,
         srst_value?: string
     };
-    
+
     export type MemWritePort = {
         clock_polarity?: boolean,
         enable_polarity?: boolean,
         no_bit_enable?: boolean
     };
-    
+
     export type Device = {
         type: string,
         source_positions?: SourcePosition[],
         [key: string]: any
     };
-    
+
     export type Port = {
         id: string,
         port: string
     };
-    
+
     export type Connector = {
         from: Port,
         to: Port,
         name?: string,
         source_positions?: SourcePosition[]
     };
-    
+
     export type Module = {
         devices: { [key: string]: Device },
         connectors: Connector[]
     };
-    
+
     export type TopModule = Module & {
         subcircuits: { [key: string]: Module }
     };
@@ -219,7 +219,7 @@ namespace Yosys {
         init: JsonConstant,
         [key: string]: any
     };
-    
+
     export type Cell = {
         hide_name: 0 | 1,
         type: string,
@@ -228,19 +228,19 @@ namespace Yosys {
         port_directions: { [key: string]: 'input' | 'output' },
         connections: { [key: string]: BitVector }
     };
-    
+
     export type Net = {
         hide_name: 0 | 1,
         bits: BitVector,
         attributes: { [key: string]: string }
     };
-    
+
     export type Module = {
         ports: { [key: string]: Port },
         cells: { [key: string]: Cell },
         netnames: { [key: string]: Net }
     };
-    
+
     export type Output = {
         modules: { [key: string]: Module }
     };
@@ -295,21 +295,21 @@ type LintMessage = {
     message: string
 };
 
-function chunkArray(a, chunk_size){
+function chunkArray(a, chunk_size) {
     let results = [];
-	let ca = a.splice();
-    
+    let ca = a.splice();
+
     while (ca.length) {
         results.push(ca.splice(0, chunk_size));
     }
-    
+
     return results;
 }
 
 function module_deps(data: Yosys.Output): [string, string | number][] {
     const out: [string, string | number][] = [];
     for (const [name, mod] of Object.entries(data.modules)) {
-        out.push([name, 1/0]);
+        out.push([name, 1 / 0]);
         for (const cname in mod.cells) {
             const cell = mod.cells[cname];
             if (cell.type in data.modules)
@@ -320,25 +320,25 @@ function module_deps(data: Yosys.Output): [string, string | number][] {
 }
 
 function order_ports(data: Yosys.Output): Portmaps {
-    const unmap = {A: 'in', Y: 'out'};
-    const binmap = {A: 'in1', B: 'in2', Y: 'out'};
+    const unmap = { A: 'in', Y: 'out' };
+    const binmap = { A: 'in1', B: 'in2', Y: 'out' };
     const out = {
-        '$mux': {A: 'in0', B: 'in1', S: 'sel', Y: 'out'},
-        '$dff': {CLK: 'clk', D: 'in', Q: 'out'},
-        '$dffe': {CLK: 'clk', EN: 'en', D: 'in', Q: 'out'},
-        '$adff': {CLK: 'clk', ARST: 'arst', D: 'in', Q: 'out'},
-        '$adffe': {CLK: 'clk', EN: 'en', ARST: 'arst', D: 'in', Q: 'out'},
-        '$sdff': {CLK: 'clk', SRST: 'srst', D: 'in', Q: 'out'},
-        '$sdffe': {CLK: 'clk', EN: 'en', SRST: 'srst', D: 'in', Q: 'out'},
-        '$sdffce': {CLK: 'clk', EN: 'en', SRST: 'srst', D: 'in', Q: 'out'},
-        '$dlatch': {EN: 'en', D: 'in', Q: 'out'},
-        '$adlatch': {EN: 'en', ARST: 'arst', D: 'in', Q: 'out'},
-        '$dffsr': {CLK: 'clk', SET: 'set', CLR: 'clr', D: 'in', Q: 'out'},
-        '$dffsre': {CLK: 'clk', EN: 'en', SET: 'set', CLR: 'clr', D: 'in', Q: 'out'},
-        '$aldff': {CLK: 'clk', ALOAD: 'aload', AD: 'ain', D: 'in', Q: 'out'},
-        '$aldffe': {CLK: 'clk', EN: 'en', ALOAD: 'aload', AD: 'ain', D: 'in', Q: 'out'},
-        '$sr': {SET: 'set', CLR: 'clr', Q: 'out'},
-        '$fsm': {ARST: 'arst', CLK: 'clk', CTRL_IN: 'in', CTRL_OUT: 'out'}
+        '$mux': { A: 'in0', B: 'in1', S: 'sel', Y: 'out' },
+        '$dff': { CLK: 'clk', D: 'in', Q: 'out' },
+        '$dffe': { CLK: 'clk', EN: 'en', D: 'in', Q: 'out' },
+        '$adff': { CLK: 'clk', ARST: 'arst', D: 'in', Q: 'out' },
+        '$adffe': { CLK: 'clk', EN: 'en', ARST: 'arst', D: 'in', Q: 'out' },
+        '$sdff': { CLK: 'clk', SRST: 'srst', D: 'in', Q: 'out' },
+        '$sdffe': { CLK: 'clk', EN: 'en', SRST: 'srst', D: 'in', Q: 'out' },
+        '$sdffce': { CLK: 'clk', EN: 'en', SRST: 'srst', D: 'in', Q: 'out' },
+        '$dlatch': { EN: 'en', D: 'in', Q: 'out' },
+        '$adlatch': { EN: 'en', ARST: 'arst', D: 'in', Q: 'out' },
+        '$dffsr': { CLK: 'clk', SET: 'set', CLR: 'clr', D: 'in', Q: 'out' },
+        '$dffsre': { CLK: 'clk', EN: 'en', SET: 'set', CLR: 'clr', D: 'in', Q: 'out' },
+        '$aldff': { CLK: 'clk', ALOAD: 'aload', AD: 'ain', D: 'in', Q: 'out' },
+        '$aldffe': { CLK: 'clk', EN: 'en', ALOAD: 'aload', AD: 'ain', D: 'in', Q: 'out' },
+        '$sr': { SET: 'set', CLR: 'clr', Q: 'out' },
+        '$fsm': { ARST: 'arst', CLK: 'clk', CTRL_IN: 'in', CTRL_OUT: 'out' }
     };
     binary_gates.forEach((nm) => out[nm] = binmap);
     unary_gates.forEach((nm) => out[nm] = unmap);
@@ -373,7 +373,7 @@ function decode_json_bigint_as_array(param: string | number): number[] {
     return decode_json_bigint(param).toArray(2).value;
 }
 
-function decode_json_constant(param: Yosys.JsonConstant, bits: number, fill : Yosys.BitChar = '0'): string {
+function decode_json_constant(param: Yosys.JsonConstant, bits: number, fill: Yosys.BitChar = '0'): string {
     if (typeof param == 'number')
         return bigInt(param).toArray(2).value.map(String).reverse()
             .concat(Array(bits).fill(fill)).slice(0, bits).reverse().join('');
@@ -386,14 +386,14 @@ function parse_source_positions(str: string): Digitaljs.SourcePosition[] {
     for (const entry of str.split('|')) {
         const colonIdx = entry.lastIndexOf(':');
         const name = entry.slice(0, colonIdx);
-        const pos = entry.slice(colonIdx+1);
-        const [from, to] = pos.split('-').map(s => s.split('.').map(v => Number(v))).map(([line, column]) => ({line, column}));
-        ret.push({name, from, to});
+        const pos = entry.slice(colonIdx + 1);
+        const [from, to] = pos.split('-').map(s => s.split('.').map(v => Number(v))).map(([line, column]) => ({ line, column }));
+        ret.push({ name, from, to });
     }
     return ret;
 }
 
-function yosys_to_digitaljs(data: Yosys.Output, portmaps: Portmaps, options: ConvertOptions = {}): {[key: string]: Digitaljs.Module} {
+function yosys_to_digitaljs(data: Yosys.Output, portmaps: Portmaps, options: ConvertOptions = {}): { [key: string]: Digitaljs.Module } {
     const out = {};
     for (const [name, mod] of Object.entries(data.modules)) {
         out[name] = yosys_to_digitaljs_mod(name, mod, portmaps, options);
@@ -424,14 +424,14 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
         if (!nets.has(k)) {
             const nms = netnames.get(k);
             const src = netsrc.get(k);
-            nets.set(k, {source: undefined, targets: [], name: nms ? nms[0] : undefined, source_positions: src || []});
+            nets.set(k, { source: undefined, targets: [], name: nms ? nms[0] : undefined, source_positions: src || [] });
         }
         return nets.get(k);
     }
     function add_net_source(k: Net, d: string, p: string, primary: boolean = false) {
         if (k.length == 0) return; // for unconnected ports
         const net = get_net(k);
-        if(net.source !== undefined) {
+        if (net.source !== undefined) {
             // multiple sources driving one net, disallowed in digitaljs
             console.log(k);
             console.log(net);
@@ -453,7 +453,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
         devices: {},
         connectors: []
     }
-    function add_device(dev : Digitaljs.Device): string {
+    function add_device(dev: Digitaljs.Device): string {
         const dname = gen_name();
         if (options.propagation !== undefined)
             dev.propagation = options.propagation;
@@ -492,17 +492,17 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
         add_net_target(cell.connections.S.slice().reverse(), dname, 'sel');
         add_net_source(cell.connections.Y, dname, 'out', true);
         for (const i of Array(decode_json_number(cell.parameters.S_WIDTH)).keys()) {
-            const p = (decode_json_number(cell.parameters.S_WIDTH)-i-1) * decode_json_number(cell.parameters.WIDTH);
+            const p = (decode_json_number(cell.parameters.S_WIDTH) - i - 1) * decode_json_number(cell.parameters.WIDTH);
             add_net_target(cell.connections.B.slice(p, p + decode_json_number(cell.parameters.WIDTH)),
-                dname, 'in' + (i+1));
+                dname, 'in' + (i + 1));
         }
     }
     function connect_mem(dname: string, cell: Yosys.Cell, dev: Digitaljs.Device) {
         for (const [k, port] of dev.rdports.entries()) {
             const portname = "rd" + k;
-            add_net_target(cell.connections.RD_ADDR.slice(dev.abits * k, dev.abits * (k+1)),
+            add_net_target(cell.connections.RD_ADDR.slice(dev.abits * k, dev.abits * (k + 1)),
                 dname, portname + "addr");
-            add_net_source(cell.connections.RD_DATA.slice(dev.bits * k, dev.bits * (k+1)),
+            add_net_source(cell.connections.RD_DATA.slice(dev.bits * k, dev.bits * (k + 1)),
                 dname, portname + "data", true);
             if ('clock_polarity' in port)
                 add_net_target([cell.connections.RD_CLK[k]], dname, portname + "clk");
@@ -515,9 +515,9 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
         }
         for (const [k, port] of dev.wrports.entries()) {
             const portname = "wr" + k;
-            add_net_target(cell.connections.WR_ADDR.slice(dev.abits * k, dev.abits * (k+1)),
+            add_net_target(cell.connections.WR_ADDR.slice(dev.abits * k, dev.abits * (k + 1)),
                 dname, portname + "addr");
-            add_net_target(cell.connections.WR_DATA.slice(dev.bits * k, dev.bits * (k+1)),
+            add_net_target(cell.connections.WR_DATA.slice(dev.bits * k, dev.bits * (k + 1)),
                 dname, portname + "data");
             if ('clock_polarity' in port)
                 add_net_target([cell.connections.WR_CLK[k]], dname, portname + "clk");
@@ -525,7 +525,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 if (port.no_bit_enable)
                     add_net_target([cell.connections.WR_EN[dev.bits * k]], dname, portname + "en");
                 else
-                    add_net_target(cell.connections.WR_EN.slice(dev.bits * k, dev.bits * (k+1)),
+                    add_net_target(cell.connections.WR_EN.slice(dev.bits * k, dev.bits * (k + 1)),
                         dname, portname + "en");
             }
         }
@@ -552,8 +552,8 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
     // Add inputs/outputs
     for (const [pname, port] of Object.entries(mod.ports)) {
         const dir = port.direction == "input" ? "Input" :
-                    port.direction == "output" ? "Output" : 
-                    undefined;
+            port.direction == "output" ? "Output" :
+                undefined;
         const dname = add_device({
             type: dir,
             net: pname,
@@ -572,7 +572,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
     }
     // Add gates
     for (const [cname, cell] of Object.entries(mod.cells)) {
-        const dev : Digitaljs.Device = {
+        const dev: Digitaljs.Device = {
             label: cname,
             type: gate_subst.get(cell.type)
         };
@@ -618,18 +618,18 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
             }
         }
         if (unary_gates.has(cell.type)) {
-                assert(cell.connections.A.length == decode_json_number(cell.parameters.A_WIDTH));
-                assert(cell.connections.Y.length == decode_json_number(cell.parameters.Y_WIDTH));
-                assert(cell.port_directions.A == 'input');
-                assert(cell.port_directions.Y == 'output');
+            assert(cell.connections.A.length == decode_json_number(cell.parameters.A_WIDTH));
+            assert(cell.connections.Y.length == decode_json_number(cell.parameters.Y_WIDTH));
+            assert(cell.port_directions.A == 'input');
+            assert(cell.port_directions.Y == 'output');
         }
         if (binary_gates.has(cell.type)) {
-                assert(cell.connections.A.length == decode_json_number(cell.parameters.A_WIDTH));
-                assert(cell.connections.B.length == decode_json_number(cell.parameters.B_WIDTH));
-                assert(cell.connections.Y.length == decode_json_number(cell.parameters.Y_WIDTH));
-                assert(cell.port_directions.A == 'input');
-                assert(cell.port_directions.B == 'input');
-                assert(cell.port_directions.Y == 'output');
+            assert(cell.connections.A.length == decode_json_number(cell.parameters.A_WIDTH));
+            assert(cell.connections.B.length == decode_json_number(cell.parameters.B_WIDTH));
+            assert(cell.connections.Y.length == decode_json_number(cell.parameters.Y_WIDTH));
+            assert(cell.port_directions.A == 'input');
+            assert(cell.port_directions.B == 'input');
+            assert(cell.port_directions.Y == 'output');
         }
         if (['$dff', '$dffe', '$adff', '$adffe', '$sdff', '$sdffe', '$sdffce', '$dlatch', '$adlatch', '$dffsr', '$dffsre', '$aldff', '$aldffe'].includes(cell.type)) {
             assert(cell.connections.D.length == decode_json_number(cell.parameters.WIDTH));
@@ -888,12 +888,12 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 assert(cell.connections.CTRL_OUT.length == decode_json_number(cell.parameters.CTRL_OUT_WIDTH));
                 const TRANS_NUM = decode_json_number(cell.parameters.TRANS_NUM);
                 const STATE_NUM_LOG2 = decode_json_number(cell.parameters.STATE_NUM_LOG2);
-                const step = 2*STATE_NUM_LOG2 
-                           + decode_json_number(cell.parameters.CTRL_IN_WIDTH)
-                           + decode_json_number(cell.parameters.CTRL_OUT_WIDTH);
-                const tt = typeof(cell.parameters.TRANS_TABLE) == "number"
-                         ? Vector3vl.fromBin(bigInt(cell.parameters.TRANS_TABLE).toString(2), TRANS_NUM * step).toBin() // workaround for yosys silliness
-                         : cell.parameters.TRANS_TABLE;
+                const step = 2 * STATE_NUM_LOG2
+                    + decode_json_number(cell.parameters.CTRL_IN_WIDTH)
+                    + decode_json_number(cell.parameters.CTRL_OUT_WIDTH);
+                const tt = typeof (cell.parameters.TRANS_TABLE) == "number"
+                    ? Vector3vl.fromBin(bigInt(cell.parameters.TRANS_TABLE).toString(2), TRANS_NUM * step).toBin() // workaround for yosys silliness
+                    : cell.parameters.TRANS_TABLE;
                 assert(tt.length == TRANS_NUM * step);
                 dev.polarity = {
                     clock: Boolean(decode_json_number(cell.parameters.CLK_POLARITY)),
@@ -947,28 +947,28 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 dev.rdports = [];
                 dev.wrports = [];
                 const rdpol = decode_json_bigint_as_array(cell.parameters.RD_CLK_POLARITY).reverse();
-                const rden  = decode_json_bigint_as_array(cell.parameters.RD_CLK_ENABLE).reverse();
-                const rdtr  = cell.type == "$mem_v2" 
-                            ? []
-                            : decode_json_bigint_as_array(cell.parameters.RD_TRANSPARENT).reverse();
+                const rden = decode_json_bigint_as_array(cell.parameters.RD_CLK_ENABLE).reverse();
+                const rdtr = cell.type == "$mem_v2"
+                    ? []
+                    : decode_json_bigint_as_array(cell.parameters.RD_TRANSPARENT).reverse();
                 const wrpol = decode_json_bigint_as_array(cell.parameters.WR_CLK_POLARITY).reverse();
-                const wren  = decode_json_bigint_as_array(cell.parameters.WR_CLK_ENABLE).reverse();
-                const init  = typeof(cell.parameters.INIT) == 'number'
-                            ? bigInt(cell.parameters.INIT).toArray(2).value.map(String).reverse()
-                            : cell.parameters.INIT.split('').reverse();
+                const wren = decode_json_bigint_as_array(cell.parameters.WR_CLK_ENABLE).reverse();
+                const init = typeof (cell.parameters.INIT) == 'number'
+                    ? bigInt(cell.parameters.INIT).toArray(2).value.map(String).reverse()
+                    : cell.parameters.INIT.split('').reverse();
                 const v2_feature = (param) => cell.type == "$mem_v2" ? decode_json_bigint_as_array(param).reverse() : [];
                 const v2_feature_const = (param, size) => cell.type == "$mem_v2" ? decode_json_constant(param, size) : "";
-                const rdtrmask  = v2_feature(cell.parameters.RD_TRANSPARENCY_MASK);
+                const rdtrmask = v2_feature(cell.parameters.RD_TRANSPARENCY_MASK);
                 const rdcolmask = v2_feature(cell.parameters.RD_COLLISION_X_MASK);
-                const rdensrst  = v2_feature(cell.parameters.RD_CE_OVER_SRST);
-                const rdinit    = v2_feature_const(cell.parameters.RD_INIT_VALUE, dev.bits * RD_PORTS);
-                const rdarst    = v2_feature_const(cell.parameters.RD_ARST_VALUE, dev.bits * RD_PORTS);
-                const rdsrst    = v2_feature_const(cell.parameters.RD_SRST_VALUE, dev.bits * RD_PORTS);
+                const rdensrst = v2_feature(cell.parameters.RD_CE_OVER_SRST);
+                const rdinit = v2_feature_const(cell.parameters.RD_INIT_VALUE, dev.bits * RD_PORTS);
+                const rdarst = v2_feature_const(cell.parameters.RD_ARST_VALUE, dev.bits * RD_PORTS);
+                const rdsrst = v2_feature_const(cell.parameters.RD_SRST_VALUE, dev.bits * RD_PORTS);
                 if (cell.parameters.INIT) {
                     const l = init.slice(-1)[0] == 'x' ? 'x' : '0';
                     const memdata = new Mem3vl(dev.bits, dev.words);
                     for (const k of Array(dev.words).keys()) {
-                        const wrd = init.slice(dev.bits * k, dev.bits * (k+1));
+                        const wrd = init.slice(dev.bits * k, dev.bits * (k + 1));
                         while (wrd.length < dev.bits) wrd.push(l);
                         memdata.set(k, Vector3vl.fromBin(wrd.reverse().join('')));
                     }
@@ -988,7 +988,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                         if (rdensrst[k])
                             port.enable_srst = true;
                         function mk_init(s: string, f: (v: string) => void) {
-                            const v = s.slice(dev.bits * k, dev.bits * (k+1));
+                            const v = s.slice(dev.bits * k, dev.bits * (k + 1));
                             if (!v.split('').every(c => c == 'x'))
                                 f(v);
                         };
@@ -1003,7 +1003,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                         }
                         function mk_mask(s: number[], f: (v: boolean | boolean[]) => void) {
                             const v = Array(WR_PORTS).fill(0);
-                            s.slice(WR_PORTS * k, WR_PORTS * (k+1)).map((c, i) => { v[i] = c });
+                            s.slice(WR_PORTS * k, WR_PORTS * (k + 1)).map((c, i) => { v[i] = c });
                             if (v.every(c => c))
                                 f(true);
                             else if (v.some(c => c))
@@ -1019,7 +1019,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                     };
                     if (wren[k]) {
                         port.clock_polarity = Boolean(wrpol[k]);
-                        const wr_en_connections = cell.connections.WR_EN.slice(dev.bits * k, dev.bits * (k+1));
+                        const wr_en_connections = cell.connections.WR_EN.slice(dev.bits * k, dev.bits * (k + 1));
                         if (wr_en_connections.some(z => z != '1')) {
                             port.enable_polarity = true;
                             if (wr_en_connections.every(z => z == wr_en_connections[0]))
@@ -1059,13 +1059,13 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
             let bitinfo: BitInfo | 'const' = bits.get(bit);
             if (bitinfo == undefined && constbit(bit))
                 bitinfo = 'const';
-            if (groups.slice(-1)[0].length > 0 && 
-                   (typeof bitinfo != typeof pbitinfo ||
-                        typeof bitinfo == 'object' &&
-                        typeof pbitinfo == 'object' &&
-                            (bitinfo.id != pbitinfo.id ||
-                             bitinfo.port != pbitinfo.port ||
-                             bitinfo.num != pbitinfo.num + 1))) {
+            if (groups.slice(-1)[0].length > 0 &&
+                (typeof bitinfo != typeof pbitinfo ||
+                    typeof bitinfo == 'object' &&
+                    typeof pbitinfo == 'object' &&
+                    (bitinfo.id != pbitinfo.id ||
+                        bitinfo.port != pbitinfo.port ||
+                        bitinfo.num != pbitinfo.num + 1))) {
                 groups.push([]);
             }
             groups.slice(-1)[0].push(bit);
@@ -1092,7 +1092,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
         if (!nbits.every(constbit))
             continue;
         const dname = add_device({
-//            label: String(val), // TODO
+            //            label: String(val), // TODO
             type: 'Constant',
             constant: nbits.slice().reverse().join('')
         });
@@ -1108,7 +1108,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
             continue; // ignore not fully driven ports
         // complex sources should be already handled!
         assert(bitinfos.every(info => info.id == bitinfos[0].id &&
-                                      info.port == bitinfos[0].port));
+            info.port == bitinfos[0].port));
         const cconn = devnets.get(bitinfos[0].id).get(bitinfos[0].port);
         const dname = add_device({
             type: 'BusSlice',
@@ -1141,7 +1141,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                     type: 'Constant',
                     constant: mout.devices[conn.from.id].constant
                 });
-                conn.from = {id: dname, port: 'out'};
+                conn.from = { id: dname, port: 'out' };
             }
             mout.connectors.push(conn);
             first = false;
@@ -1151,17 +1151,17 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
 }
 
 function escape_filename(cmd: string): string {
-    return '"' + cmd.replace(/(["\s'$`\\])/g,'\\$1') + '"';
+    return '"' + cmd.replace(/(["\s'$`\\])/g, '\\$1') + '"';
 }
-        
+
 const verilator_re = /^%(Warning|Error)[^:]*: ([^:]*):([0-9]+):([0-9]+): (.*)$/;
 
 export async function verilator_lint(filenames: string[], dirname?: string, options: Options = {}): Promise<LintMessage[]> {
     try {
         const output: LintMessage[] = [];
-        const verilator_result: {stdout: string, stderr: string} = await promisify(child_process.exec)(
+        const verilator_result: { stdout: string, stderr: string } = await promisify(child_process.exec)(
             'verilator -lint-only -Wall -Wno-DECLFILENAME -Wno-UNOPT -Wno-UNOPTFLAT ' + filenames.map(escape_filename).join(' '),
-            {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000})
+            { maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000 })
             .catch(exc => exc);
         for (const line of verilator_result.stderr.split('\n')) {
             const result = line.match(verilator_re);
@@ -1186,7 +1186,7 @@ export function yosys2digitaljs(obj: Yosys.Output, options: ConvertOptions = {})
     const toporder = topsort(module_deps(obj));
     toporder.pop();
     const toplevel = toporder.pop();
-    const output: Digitaljs.TopModule = { subcircuits: {}, ... out[toplevel] };
+    const output: Digitaljs.TopModule = { subcircuits: {}, ...out[toplevel] };
     for (const x of toporder)
         output.subcircuits[x] = out[x];
     return output;
@@ -1197,18 +1197,18 @@ export async function process(filenames: string[], dirname?: string, options: Op
     const optimize = options.optimize ? "; opt -full" : "; opt_clean";
     const fsmexpand = options.fsmexpand ? " -expand" : "";
     const fsmpass = options.fsm == "nomap" ? "; fsm -nomap" + fsmexpand
-                  : options.fsm ? "; fsm" + fsmexpand
-                  : "";
+        : options.fsm ? "; fsm" + fsmexpand
+            : "";
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
     let obj = undefined;
-    const yosys_result: {stdout: string, stderr: string, killed?: boolean, code?: number} = await promisify(child_process.exec)(
-        'yosys -p "hierarchy -auto-top; proc' + optimize_simp + fsmpass + '; memory -nomap; wreduce -memx' + 
+    const yosys_result: { stdout: string, stderr: string, killed?: boolean, code?: number } = await promisify(child_process.exec)(
+        'yosys -p "hierarchy -auto-top; proc' + optimize_simp + fsmpass + '; memory -nomap; wreduce -memx' +
         optimize + '" -o "' + tmpjson + '" ' + filenames.map(escape_filename).join(' '),
-        {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000})
+        { maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000 })
         .catch(exc => exc);
     try {
         if (yosys_result instanceof Error) {
-            if (yosys_result.killed) 
+            if (yosys_result.killed)
                 yosys_result.message = "Yosys killed"
             else if (yosys_result.code)
                 yosys_result.message = "Yosys failed with code " + yosys_result.code;
@@ -1248,12 +1248,19 @@ export function io_ui(output: Digitaljs.Module) {
         }
         if (dev.type == 'Input')
             dev.type = dev.bits == 1 ? 'Button' : 'NumEntry';
-        if (dev.type == 'Output')
-            dev.type = dev.bits == 1 ? 'Lamp' : 'NumDisplay';
+        if (dev.type == 'Output') {
+            if (dev.bits == 1)
+                dev.type = 'Lamp';
+            // use 7 segment display for display7 named outputs
+            else if (dev.bits == 8 && dev.label == 'display7')
+                dev.type = 'Display7';
+            else
+                dev.type = 'NumDisplay';
+        }
     }
 }
 
-export async function process_files(data: {[key: string]: string}, options: Options = {}): Promise<Output> {
+export async function process_files(data: { [key: string]: string }, options: Options = {}): Promise<Output> {
     const dir = await tmp.dir();
     const names = [];
     try {
