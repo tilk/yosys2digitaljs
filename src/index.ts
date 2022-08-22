@@ -1251,7 +1251,7 @@ export function io_ui(output: Digitaljs.Module) {
         if (dev.type == 'Output') {
             if (dev.bits == 1)
                 dev.type = 'Lamp';
-            else if (dev.bits == 8 && dev.label == 'display7')
+            else if (dev.bits == 8 && (dev.label == 'display7' || dev.label.startsWith('display7_')))
                 dev.type = 'Display7';
             else
                 dev.type = 'NumDisplay';
