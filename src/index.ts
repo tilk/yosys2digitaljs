@@ -61,6 +61,7 @@ const gate_subst = new Map([
     ['$pmux', 'Mux1Hot'],
     ['$mem', 'Memory'],
     ['$mem_v2', 'Memory'],
+    ['$lut', 'Memory'],
     ['$fsm', 'FSM'],
     ['$clock', 'Clock'],
     ['$button', 'Button'],
@@ -1030,6 +1031,24 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 }
                 break;
             }
+            case '$lut':
+                assert(cell.connections.A.length == decode_json_number(cell.parameters.WIDTH));
+                assert(cell.connections.Y.length == 1);
+                assert(cell.port_directions.A == 'input');
+                assert(cell.port_directions.Y == 'output');
+                dev.abits = cell.connections.A.length;
+                dev.bits = cell.connections.Y.length;
+                dev.rdports = [{}];
+                dev.wrports = [];
+                dev.memdata = cell.parameters.LUT.split('').reverse();
+                assert(dev.memdata.length == Math.pow(2, dev.abits));
+
+                // Rewrite cell connections to be $mem compatible for port mapping
+                cell.connections.RD_ADDR = cell.connections.A;
+                cell.connections.RD_DATA = cell.connections.Y;
+                delete cell.connections.A;
+                delete cell.connections.Y;
+                break;
             default:
         }
         if (dev.type == 'Dff') {
@@ -1048,6 +1067,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
         else if (cell.type == '$pmux') connect_pmux(dname, cell);
         else if (cell.type == '$mem') connect_mem(dname, cell, dev);
         else if (cell.type == '$mem_v2') connect_mem(dname, cell, dev);
+        else if (cell.type == '$lut') connect_mem(dname, cell, dev);
         else throw Error('Invalid cell type: ' + cell.type);
     }
     // Group bits into nets for complex sources
