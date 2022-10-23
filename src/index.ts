@@ -1248,8 +1248,14 @@ export function io_ui(output: Digitaljs.Module) {
         }
         if (dev.type == 'Input')
             dev.type = dev.bits == 1 ? 'Button' : 'NumEntry';
-        if (dev.type == 'Output')
-            dev.type = dev.bits == 1 ? 'Lamp' : 'NumDisplay';
+        if (dev.type == 'Output') {
+            if (dev.bits == 1)
+                dev.type = 'Lamp';
+            else if (dev.bits == 8 && (dev.label == 'display7' || dev.label.startsWith('display7_')))
+                dev.type = 'Display7';
+            else
+                dev.type = 'NumDisplay';
+        }
     }
 }
 
