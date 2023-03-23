@@ -1,6 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] -- 2023-03-2023
+
+### Added
+
+- Support for `$lut` cells
+- Support for generating 7-segment display outputs
+
 ## [0.6.0] -- 2022-02-02
 
 ### Added
