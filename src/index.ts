@@ -436,8 +436,6 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
         const net = get_net(k);
         if(net.source !== undefined) {
             // multiple sources driving one net, disallowed in digitaljs
-            console.log(k);
-            console.log(net);
             throw Error('Multiple sources driving net: ' + net.name);
         }
         net.source = { id: d, port: p };
@@ -1172,17 +1170,36 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
     return mout;
 }
 
-function escape_filename(cmd: string): string {
-    return '"' + cmd.replace(/(["\s'$`\\])/g,'\\$1') + '"';
+function ansi_c_escape_contents(cmd: string): string {
+    function func(ch: string) {
+        if (ch == '\t') return '\\t';
+        if (ch == '\r') return '\\r';
+        if (ch == '\n') return '\\n';
+        return '\\x' + ch.charCodeAt(0).toString(16).padStart(2, '0');
+    }
+    return cmd.replace(/(["'\\])/g,'\\$1')
+              .replace(/[\x00-\x1F\x7F-\x9F]/g, func);
 }
-        
+
+function ansi_c_escape(cmd: string): string {
+    return '"' + ansi_c_escape_contents(cmd) + '"';
+}
+
+function shell_escape_contents(cmd: string): string {
+    return cmd.replace(/(["\r\n$`\\])/g,'\\$1');
+}
+
+function shell_escape(cmd: string): string {
+    return '"' + shell_escape_contents(cmd) + '"';
+}
+
 const verilator_re = /^%(Warning|Error)[^:]*: ([^:]*):([0-9]+):([0-9]+): (.*)$/;
 
 export async function verilator_lint(filenames: string[], dirname?: string, options: Options = {}): Promise<LintMessage[]> {
     try {
         const output: LintMessage[] = [];
         const verilator_result: {stdout: string, stderr: string} = await promisify(child_process.exec)(
-            'verilator -lint-only -Wall -Wno-DECLFILENAME -Wno-UNOPT -Wno-UNOPTFLAT ' + filenames.map(escape_filename).join(' '),
+            'verilator -lint-only -Wall -Wno-DECLFILENAME -Wno-UNOPT -Wno-UNOPTFLAT ' + filenames.map(shell_escape).join(' '),
             {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000})
             .catch(exc => exc);
         for (const line of verilator_result.stderr.split('\n')) {
@@ -1224,8 +1241,9 @@ export async function process(filenames: string[], dirname?: string, options: Op
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
     let obj = undefined;
     const yosys_result: {stdout: string, stderr: string, killed?: boolean, code?: number} = await promisify(child_process.exec)(
-        'yosys -p "hierarchy -auto-top; proc' + optimize_simp + fsmpass + '; memory -nomap; wreduce -memx' + 
-        optimize + '" -o "' + tmpjson + '" ' + filenames.map(escape_filename).join(' '),
+        'yosys -p "read_verilog ' + shell_escape_contents(filenames.map(ansi_c_escape).join(' ')) +
+        '; hierarchy -auto-top; proc' + optimize_simp + fsmpass + '; memory -nomap; wreduce -memx' +
+        optimize + '" -o "' + tmpjson + '"',
         {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000})
         .catch(exc => exc);
     try {
