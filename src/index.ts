@@ -175,9 +175,11 @@ namespace Digitaljs {
 
 namespace Yosys {
 
-    export type BitChar = '0' | '1' | 'x';
+    export const ConstChars = ["0", "1", "x", "z"] as const;
 
-    export type Bit = number | '0' | '1' | 'x';
+    export type BitChar = (typeof ConstChars)[number];
+
+    export type Bit = number | BitChar;
 
     export type BitVector = Bit[];
 
@@ -404,7 +406,7 @@ function yosys_to_digitaljs(data: Yosys.Output, portmaps: Portmaps, options: Con
 
 function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portmaps, options: ConvertOptions = {}): Digitaljs.Module {
     function constbit(bit: Bit) {
-        return bit == '0' || bit == '1' || bit == 'x';
+        return (Yosys.ConstChars as readonly string[]).includes(bit.toString());
     }
     const nets = new HashMap<Net, NetInfo>();
     const netnames = new HashMap<Net, string[]>();
