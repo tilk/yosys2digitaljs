@@ -1204,7 +1204,7 @@ export async function verilator_lint(filenames: string[], dirname?: string, opti
     try {
         const output: LintMessage[] = [];
         const verilator_result: {stdout: string, stderr: string} = await promisify(child_process.exec)(
-            'verilator -lint-only -Wall -Wno-DECLFILENAME -Wno-UNOPT -Wno-UNOPTFLAT ' + filenames.map(shell_escape).join(' '),
+            'timeout -k10s 40s verilator -lint-only -Wall -Wno-DECLFILENAME -Wno-UNOPT -Wno-UNOPTFLAT ' + filenames.map(shell_escape).join(' '),
             {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000})
             .catch(exc => exc);
         for (const line of verilator_result.stderr.split('\n')) {
@@ -1246,7 +1246,7 @@ export async function process(filenames: string[], dirname?: string, options: Op
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
     let obj = undefined;
     const yosys_result: {stdout: string, stderr: string, killed?: boolean, code?: number} = await promisify(child_process.exec)(
-        'yosys -p "' + shell_escape_contents(filenames.map(process_filename).join('; ')) +
+        'timeout -k10s 40s yosys -p "' + shell_escape_contents(filenames.map(process_filename).join('; ')) +
         '; hierarchy -auto-top; proc' + optimize_simp + fsmpass + '; memory -nomap; wreduce -memx' +
         optimize + '" -o "' + tmpjson + '"',
         {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000})
