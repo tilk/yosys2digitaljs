@@ -1193,6 +1193,11 @@ function shell_escape(cmd: string): string {
     return '"' + shell_escape_contents(cmd) + '"';
 }
 
+function process_filename(filename: string): string {
+    const flags = /\.sv$/.test(filename) ? " -sv" : "";
+    return "read_verilog" + flags + " " + ansi_c_escape(filename);
+}
+
 const verilator_re = /^%(Warning|Error)[^:]*: ([^:]*):([0-9]+):([0-9]+): (.*)$/;
 
 export async function verilator_lint(filenames: string[], dirname?: string, options: Options = {}): Promise<LintMessage[]> {
@@ -1241,7 +1246,7 @@ export async function process(filenames: string[], dirname?: string, options: Op
     const tmpjson = await tmp.tmpName({ postfix: '.json' });
     let obj = undefined;
     const yosys_result: {stdout: string, stderr: string, killed?: boolean, code?: number} = await promisify(child_process.exec)(
-        'yosys -p "read_verilog ' + shell_escape_contents(filenames.map(ansi_c_escape).join(' ')) +
+        'yosys -p "' + shell_escape_contents(filenames.map(process_filename).join('; ')) +
         '; hierarchy -auto-top; proc' + optimize_simp + fsmpass + '; memory -nomap; wreduce -memx' +
         optimize + '" -o "' + tmpjson + '"',
         {maxBuffer: 1000000, cwd: dirname || null, timeout: options.timeout || 60000})
