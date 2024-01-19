@@ -1,6 +1,6 @@
 {
   "name": "yosys2digitaljs",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Export Yosys netlists to a logic simulator",
   "main": "dist/index",
   "types": "dist/index.d.ts",
