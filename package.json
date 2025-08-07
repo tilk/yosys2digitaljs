@@ -18,7 +18,7 @@
     "hashmap": "^2.4.0",
     "minimist": "^1.2.5",
     "sanitize-filename": "^1.6.3",
-    "tmp-promise": "^1.1.0",
+    "tmp-promise": "^3.0.3",
     "topsort": "^0.0.2"
   },
   "engines": {
