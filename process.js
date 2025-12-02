@@ -3,7 +3,7 @@
 
 const fs = require('fs');
 const argv = require('minimist')(
-    process.argv.slice(2), 
+    process.argv.slice(2),
     {boolean: ["optimize", "yosys_out", "yosys_output", "html", "no_io_ui", "tmpdir", "noindent", "fsmexpand"],
      string: ["fsm"],
      default: {fsm: true}}
@@ -31,6 +31,7 @@ if (argv._.length === 0) {
     console.error('No Verilog files passed!');
     process.exit(1);
 }
+const yosys2digitaljs_core = require('./dist/core.js');
 const yosys2digitaljs = require('./dist/index.js');
 const opts = {};
 if (argv.optimize) opts.optimize = true;
@@ -62,7 +63,7 @@ result.then(res => {
         console.log('*/');
     }
     const output = res.output;
-    if (!argv.no_io_ui) yosys2digitaljs.io_ui(output);
+    if (!argv.no_io_ui) yosys2digitaljs_core.io_ui(output);
     console.log(JSON.stringify(output, null, argv.noindent ? 0 : 2));
     if (argv.html) {
         console.log(');const paper = circuit.displayOn($(\'#paper\'));circuit.start();</script></body></html>');
