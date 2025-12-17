@@ -1158,3 +1158,53 @@ export function io_ui(output: Digitaljs.Module) {
         }
     }
 }
+
+function ansi_c_escape_contents(cmd: string): string {
+    function func(ch: string) {
+        if (ch == '\t') return '\\t';
+        if (ch == '\r') return '\\r';
+        if (ch == '\n') return '\\n';
+        return '\\x' + ch.charCodeAt(0).toString(16).padStart(2, '0');
+    }
+    return cmd.replace(/(["'\\])/g,'\\$1')
+              .replace(/[\x00-\x1F\x7F-\x9F]/g, func);
+}
+
+function ansi_c_escape(cmd: string): string {
+    return '"' + ansi_c_escape_contents(cmd) + '"';
+}
+
+function shell_escape_contents(cmd: string): string {
+    return cmd.replace(/(["\r\n$`\\])/g,'\\$1');
+}
+
+function shell_escape(cmd: string): string {
+    return '"' + shell_escape_contents(cmd) + '"';
+}
+
+function process_filename(filename: string): string {
+    const flags = /\.sv$/.test(filename) ? "-sv" : "";
+    return `read_verilog ${flags} ${ansi_c_escape(filename)}`;
+}
+
+export function prepare_yosys_script(filenames: string[], options: Options): string {
+    const optimize_simp = options.optimize ? "opt" : "opt_clean";
+    const optimize = options.optimize ? "opt -full" : "opt_clean";
+    const fsmexpand = options.fsmexpand ? " -expand" : "";
+    const fsmpass = options.fsm == "nomap"
+                ? "fsm -nomap" + fsmexpand
+                : options.fsm
+                    ? "fsm" + fsmexpand
+                    : "";
+
+    const readVerilogFilesScript = filenames
+        .map((filename) => process_filename(filename))
+
+    const yosysScript = [...readVerilogFilesScript, 'hierarchy -auto-top', 'proc', optimize_simp, fsmpass, 'memory -nomap', 'wreduce -memx', optimize]
+    return yosysScript.join('; ');
+}
+
+export function prepare_verilator_args(filenames: string[]): string[] {
+    const processed_filenames = filenames.map(shell_escape);
+    return ['-lint-only', '-Wall', '-Wno-DECLFILENAME', '-Wno-UNOPT', '-Wno-UNOPTFLAT', ...processed_filenames];
+}
