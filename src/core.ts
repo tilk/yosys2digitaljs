@@ -1183,8 +1183,20 @@ function shell_escape(cmd: string): string {
 }
 
 function process_filename(filename: string): string {
-    const flags = /\.sv$/.test(filename) ? "-sv" : "";
-    return `read_verilog ${flags} ${ansi_c_escape(filename)}`;
+    const ext = filename.match(/\.[a-z]+$/)?.[0];
+
+    const commands: { [key: string]: string } = {
+        '.il': 'read_rtlil',
+        '.sv': 'read_verilog -sv',
+        '.v': 'read_verilog',
+        '.vh': 'read_verilog'
+    };
+
+    if (ext && ext in commands) {
+        return `${commands[ext]} ${ansi_c_escape(filename)}`;
+    } else {
+        return ''
+    }
 }
 
 export function prepare_yosys_script(filenames: string[], options: Options): string {
@@ -1197,10 +1209,10 @@ export function prepare_yosys_script(filenames: string[], options: Options): str
                     ? "fsm" + fsmexpand
                     : "";
 
-    const readVerilogFilesScript = filenames
+    const readFilesScript = filenames
         .map((filename) => process_filename(filename))
 
-    const yosysScript = [...readVerilogFilesScript, 'hierarchy -auto-top', 'proc', optimize_simp, fsmpass, 'memory -nomap', 'wreduce -memx', optimize]
+    const yosysScript = [...readFilesScript, 'setattr -mod -unset top', 'hierarchy -auto-top', 'proc', optimize_simp, fsmpass, 'memory -nomap', 'wreduce -memx', optimize]
     return yosysScript.join('; ');
 }
 
