@@ -35,6 +35,14 @@ type LintMessage = {
 
 const verilator_re = /^%(Warning|Error)[^:]*: ([^:]*):([0-9]+):([0-9]+): (.*)$/;
 
+function sanitize_files(files: {[key: string]: string}): {[key: string]: string} {
+    const sanitized: {[key: string]: string} = {};
+    for (const [name, content] of Object.entries(files)) {
+        sanitized[sanitize(name)] = content;
+    }
+    return sanitized;
+}
+
 export async function verilator_lint(filenames: string[], dirname?: string, options: Options = {}): Promise<LintMessage[]> {
     try {
         const output: LintMessage[] = [];
@@ -97,18 +105,18 @@ export async function process(filenames: string[], dirname?: string, options: Op
 }
 
 export async function process_files(data: {[key: string]: string}, options: Options = {}): Promise<Output> {
+    const sanitized_data = sanitize_files(data);
     const dir = await tmp.dir();
     const names = [];
     try {
-        for (const [name, content] of Object.entries(data)) {
-            const sname = sanitize(name);
+        for (const [sname, content] of Object.entries(sanitized_data)) {
             await promisify(fs.writeFile)(path.resolve(dir.path, sname), content);
             if (/\.(v|sv|il)$/.test(sname)) names.push(sname);
         }
         return await process(names, dir.path, options);
     } finally {
-        for (const name of Object.keys(data)) {
-            await promisify(fs.unlink)(path.resolve(dir.path, name)).catch(exc => exc);
+        for (const sname of Object.keys(sanitized_data)) {
+            await promisify(fs.unlink)(path.resolve(dir.path, sname)).catch(exc => exc);
         }
         dir.cleanup();
     }

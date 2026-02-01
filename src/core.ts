@@ -11,11 +11,11 @@ function assert_fallback(val: any, msg?: string) {
         throw new Error(msg || "Assertion failed");
 }
 
-const isNode = typeof process !== "undefined" &&
+const isNodeEnvironment = typeof process !== "undefined" &&
     process.versions != null &&
     process.versions.node != null;
 
-const assert = isNode
+const assert = isNodeEnvironment
     ? require('assert')
     : assert_fallback
 
@@ -1211,12 +1211,13 @@ export function prepare_yosys_script(filenames: string[], options: Options): str
 
     const readFilesScript = filenames
         .map((filename) => process_filename(filename))
+        .map(cmd => isNodeEnvironment ? shell_escape_contents(cmd) : cmd);
 
     const yosysScript = [...readFilesScript, 'setattr -mod -unset top', 'hierarchy -auto-top', 'proc', optimize_simp, fsmpass, 'memory -nomap', 'wreduce -memx', optimize]
     return yosysScript.join('; ');
 }
 
 export function prepare_verilator_args(filenames: string[]): string[] {
-    const processed_filenames = filenames.map(shell_escape);
+    const processed_filenames = isNodeEnvironment ? filenames.map(shell_escape) : filenames;
     return ['-lint-only', '-Wall', '-Wno-DECLFILENAME', '-Wno-UNOPT', '-Wno-UNOPTFLAT', ...processed_filenames];
 }
