@@ -188,6 +188,7 @@ const binary_gates = new Set([
     '$shl', '$shr', '$sshl', '$sshr', '$shift', '$shiftx',
     '$logic_and', '$logic_or']);
 const gate_subst = new Map([
+// Frontend cells (simlib.v)
     ['$not', 'Not'],
     ['$and', 'And'],
     ['$nand', 'Nand'],
@@ -261,7 +262,33 @@ const gate_subst = new Map([
     ['$dffsr', 'Dff'],
     ['$dffsre', 'Dff'],
     ['$aldff', 'Dff'],
-    ['$aldffe', 'Dff']]);
+    ['$aldffe', 'Dff'],
+// Techmap cells (simcells.v)
+    ['$_BUF_', 'Repeater'],
+    ['$_NOT_', 'Not'],
+    ['$_AND_', 'And'],
+    ['$_NAND_', 'Nand'],
+    ['$_OR_', 'Or'],
+    ['$_NOR_', 'Nor'],
+    ['$_XOR_', 'Xor'],
+    ['$_XNOR_', 'Xnor'],
+    ['$_MUX_', 'Mux'],
+    ['$_SR_**_', 'Dff'],
+    ['$_DFF_*_', 'Dff'],
+    ['$_DFFE_**_', 'Dff'],
+    ['$_DFFSR_***_', 'Dff'],
+    ['$_DFFSRE_****_', 'Dff'],
+    ['$_ADFF_**?_', 'Dff'],
+    ['$_ADFFE_**?*_', 'Dff'],
+    ['$_ALDFF_**_', 'Dff'],
+    ['$_ALDFFE_***_', 'Dff'],
+    ['$_SDFF_**?_', 'Dff'],
+    ['$_SDFFE_**?*_', 'Dff'],
+    ['$_SDFFCE_**?*_', 'Dff'],
+    ['$_DLATCH_*_', 'Dff'],
+    ['$_ADLATCH_**?_', 'Dff'],
+    ['$_DLATCHSR_**?_', 'Dff'],
+]);
 
 function module_deps(data: Yosys.Output): [string, string | number][] {
     const out: [string, string | number][] = [];
@@ -1213,7 +1240,7 @@ export function prepare_yosys_script(filenames: string[], options: Options): str
         .map((filename) => process_filename(filename))
         .map(cmd => isNodeEnvironment ? shell_escape_contents(cmd) : cmd);
 
-    const yosysScript = [...readFilesScript, 'setattr -mod -unset top', 'hierarchy -auto-top', 'proc', optimize_simp, fsmpass, 'memory -nomap', 'wreduce -memx', optimize]
+    const yosysScript = [...readFilesScript, 'setattr -mod -unset top', 'hierarchy -auto-top', 'proc', optimize_simp, fsmpass, 'memory -nomap', 'wreduce -memx', optimize, 'abc -lut 4']
     return yosysScript.join('; ');
 }
 
