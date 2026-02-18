@@ -570,6 +570,8 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
             label: cname,
             type: gate_subst.get(cell.type)
         };
+        if (cell.hide_name)
+            dev.hide_label = true;
         if (dev.type == undefined) {
             dev.type = 'Subcircuit';
             dev.celltype = cell.type;
