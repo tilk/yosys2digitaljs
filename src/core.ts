@@ -299,6 +299,50 @@ const gate_subst = new Map([
     ['$_DLATCHSR_**?_', 'Dff'],
 ]);
 
+const techmap_dff_kinds: [string, string[], string[]][] = [
+    ['$_SR_', ['set', 'clr'], ['out']],
+    ['$_DFF_', ['clock'], ['in', 'out']],
+    ['$_DFFE_', ['clock', 'enable'], ['in', 'out']],
+    ['$_DFFSR_', ['clock', 'set', 'clr'], ['in', 'out']],
+    ['$_DFFSRE_', ['clock', 'set', 'clr', 'enable'], ['in', 'out']],
+    ['$_DFF_', ['clock', 'arst'], ['in', 'out']],
+    ['$_DFFE_', ['clock', 'arst', 'enable'], ['in', 'out']],
+    ['$_ALDFF_', ['clock', 'aload'], ['in', 'ain', 'out']],
+    ['$_ALDFFE_', ['clock', 'aload', 'enable'], ['in', 'ain', 'out']],
+    ['$_SDFF_', ['clock', 'srst'], ['in', 'out']],
+    ['$_SDFFE_', ['clock', 'srst', 'enable'], ['in', 'out']],
+    ['$_SDFFCE_', ['clock', 'srst', 'enable'], ['in', 'out']],
+    ['$_DLATCH_', ['enable'], ['in', 'out']],
+    ['$_ADLATCH_', ['enable', 'arst'], ['in', 'out']],
+    ['$_DLATCHSR_', ['enable', 'set', 'clr'], ['in', 'out']],
+];
+
+function techmap_names_for(name: string, ports: string[]): string[] {
+    return ports
+        .flatMap(x => x.endsWith('rst') ? [['N', 'P'], ['0', '1']] : [['N', 'P']])
+        .reduce<string[][]>((a, b) => a.flatMap(d => b.map(e => [d, e].flat())), [[]])
+        .map(x => name + x.join('') + '_');
+}
+
+for (const [name, ports, _] of techmap_dff_kinds) {
+    for (const s of techmap_names_for(name, ports)) {
+        gate_subst.set(s, 'Dff');
+    }
+}
+
+const techmap_port_map = new Map([
+    ['set', 'S'],
+    ['clr', 'R'],
+    ['in', 'D'],
+    ['out', 'Q'],
+    ['clock', 'C'],
+    ['enable', 'E'],
+    ['aload', 'L'],
+    ['ain', 'AD'],
+    ['arst', 'R'],
+    ['srst', 'R']
+]);
+
 function module_deps(data: Yosys.Output): [string, string | number][] {
     const out: [string, string | number][] = [];
     for (const [name, mod] of Object.entries(data.modules)) {
@@ -338,6 +382,15 @@ function order_ports(data: Yosys.Output): Portmaps {
     techmap_binary_gates.forEach((nm) => out[nm] = binmap);
     unary_gates.forEach((nm) => out[nm] = unmap);
     techmap_unary_gates.forEach((nm) => out[nm] = unmap);
+    for (const [name, ports1, ports2] of techmap_dff_kinds) {
+        const portmap: Portmap = {};
+        for (const pname of ports1.concat(ports2)) {
+            portmap[techmap_port_map.get(pname)] = pname;
+        }
+        for (const s of techmap_names_for(name, ports1)) {
+            out[s] = portmap;
+        }
+    }
     for (const [name, mod] of Object.entries(data.modules)) {
         const portmap: Portmap = {};
         const ins = [], outs = [];
