@@ -179,14 +179,23 @@ type BitInfo = {
 };
 
 const unary_gates = new Set([
-    '$not', '$neg', '$pos', '$reduce_and', '$reduce_or', '$reduce_xor',
-    '$reduce_xnor', '$reduce_bool', '$logic_not']);
+    '$repeater', '$not', '$neg', '$pos',
+    '$reduce_and', '$reduce_nand', '$reduce_or', '$reduce_nor', '$reduce_xor', '$reduce_xnor', '$reduce_xnor',
+    '$reduce_bool', '$logic_not'
+]);
+const techmap_unary_gates = new Set([
+    '$_BUF_', '$_NOT_'
+]);
 const binary_gates = new Set([
-    '$and', '$or', '$xor', '$xnor',
+    '$and', '$nand', '$or', '$nor', '$xor', '$xnor',
     '$add', '$sub', '$mul', '$div', '$mod', '$pow',
     '$lt', '$le', '$eq', '$ne', '$ge', '$gt', '$eqx', '$nex',
     '$shl', '$shr', '$sshl', '$sshr', '$shift', '$shiftx',
-    '$logic_and', '$logic_or']);
+    '$logic_and', '$logic_or'
+]);
+const techmap_binary_gates = new Set([
+    '$_AND_', '$_NAND_', '$_OR_', '$_NOR_', '$_XOR_', '$_XNOR_'
+]);
 const gate_subst = new Map([
 // Frontend cells (simlib.v)
     ['$not', 'Not'],
@@ -322,10 +331,13 @@ function order_ports(data: Yosys.Output): Portmaps {
         '$aldff': {CLK: 'clk', ALOAD: 'aload', AD: 'ain', D: 'in', Q: 'out'},
         '$aldffe': {CLK: 'clk', EN: 'en', ALOAD: 'aload', AD: 'ain', D: 'in', Q: 'out'},
         '$sr': {SET: 'set', CLR: 'clr', Q: 'out'},
-        '$fsm': {ARST: 'arst', CLK: 'clk', CTRL_IN: 'in', CTRL_OUT: 'out'}
+        '$fsm': {ARST: 'arst', CLK: 'clk', CTRL_IN: 'in', CTRL_OUT: 'out'},
+        '$_MUX_': {A: 'in0', B: 'in1', S: 'sel', Y: 'out'},
     };
     binary_gates.forEach((nm) => out[nm] = binmap);
+    techmap_binary_gates.forEach((nm) => out[nm] = binmap);
     unary_gates.forEach((nm) => out[nm] = unmap);
+    techmap_unary_gates.forEach((nm) => out[nm] = unmap);
     for (const [name, mod] of Object.entries(data.modules)) {
         const portmap: Portmap = {};
         const ins = [], outs = [];
@@ -605,10 +617,24 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 assert(cell.port_directions.A == 'input');
                 assert(cell.port_directions.Y == 'output');
         }
+        if (techmap_unary_gates.has(cell.type)) {
+                assert(cell.connections.A.length == 1);
+                assert(cell.connections.Y.length == 1);
+                assert(cell.port_directions.A == 'input');
+                assert(cell.port_directions.Y == 'output');
+        }
         if (binary_gates.has(cell.type)) {
                 assert(cell.connections.A.length == decode_json_number(cell.parameters.A_WIDTH));
                 assert(cell.connections.B.length == decode_json_number(cell.parameters.B_WIDTH));
                 assert(cell.connections.Y.length == decode_json_number(cell.parameters.Y_WIDTH));
+                assert(cell.port_directions.A == 'input');
+                assert(cell.port_directions.B == 'input');
+                assert(cell.port_directions.Y == 'output');
+        }
+        if (techmap_binary_gates.has(cell.type)) {
+                assert(cell.connections.A.length == 1);
+                assert(cell.connections.B.length == 1);
+                assert(cell.connections.Y.length == 1);
                 assert(cell.port_directions.A == 'input');
                 assert(cell.port_directions.B == 'input');
                 assert(cell.port_directions.Y == 'output');
@@ -664,7 +690,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                     in2: Boolean(decode_json_number(cell.parameters.B_SIGNED))
                 }
                 break;
-            case '$and': case '$or': case '$xor': case '$xnor':
+            case '$and': case '$nand': case '$or': case '$nor': case '$xor': case '$xnor':
                 match_port(cell.connections.A, cell.parameters.A_SIGNED, cell.connections.Y.length);
                 match_port(cell.connections.B, cell.parameters.B_SIGNED, cell.connections.Y.length);
                 dev.bits = cell.connections.Y.length;
@@ -1235,12 +1261,13 @@ export function prepare_yosys_script(filenames: string[], options: Options): str
                 : options.fsm
                     ? "fsm" + fsmexpand
                     : "";
+    const techmap = options.techmap ? "techmap" : "";
 
     const readFilesScript = filenames
         .map((filename) => process_filename(filename))
         .map(cmd => isNodeEnvironment ? shell_escape_contents(cmd) : cmd);
 
-    const yosysScript = [...readFilesScript, 'setattr -mod -unset top', 'hierarchy -auto-top', 'proc', optimize_simp, fsmpass, 'memory -nomap', 'wreduce -memx', optimize, 'abc -lut 4']
+    const yosysScript = [...readFilesScript, 'setattr -mod -unset top', 'hierarchy -auto-top', 'proc', optimize_simp, fsmpass, 'memory -nomap', 'wreduce -memx', optimize, techmap]
     return yosysScript.join('; ');
 }
 

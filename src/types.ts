@@ -142,7 +142,8 @@ type Options = ConvertOptions & {
     fsmexpand?: boolean,
     fsm?: boolean | "nomap",
     timeout?: number,
-    lint?: boolean
+    lint?: boolean,
+    techmap?: boolean
 };
 
 type Output = {
