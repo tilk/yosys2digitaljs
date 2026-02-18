@@ -286,20 +286,20 @@ const gate_subst = new Map([
 
 const techmap_dff_kinds = new Map([
     ['$_SR_', [['set', 'clr'], ['out']]],
-    ['$_DFF_', [['clock'], ['in', 'out']]],
-    ['$_DFFE_', [['clock', 'enable'], ['in', 'out']]],
-    ['$_DFFSR_', [['clock', 'set', 'clr'], ['in', 'out']]],
-    ['$_DFFSRE_', [['clock', 'set', 'clr', 'enable'], ['in', 'out']]],
-    ['$_DFF_', [['clock', 'arst'], ['in', 'out']]],
-    ['$_DFFE_', [['clock', 'arst', 'enable'], ['in', 'out']]],
-    ['$_ALDFF_', [['clock', 'aload'], ['in', 'ain', 'out']]],
-    ['$_ALDFFE_', [['clock', 'aload', 'enable'], ['in', 'ain', 'out']]],
-    ['$_SDFF_', [['clock', 'srst'], ['in', 'out']]],
-    ['$_SDFFE_', [['clock', 'srst', 'enable'], ['in', 'out']]],
-    ['$_SDFFCE_', [['clock', 'srst', 'enable'], ['in', 'out']]],
-    ['$_DLATCH_', [['enable'], ['in', 'out']]],
-    ['$_ADLATCH_', [['enable', 'arst'], ['in', 'out']]],
-    ['$_DLATCHSR_', [['enable', 'set', 'clr'], ['in', 'out']]],
+    ['$_DFF_', [['clk'], ['in', 'out']]],
+    ['$_DFFE_', [['clk', 'en'], ['in', 'out']]],
+    ['$_DFFSR_', [['clk', 'set', 'clr'], ['in', 'out']]],
+    ['$_DFFSRE_', [['clk', 'set', 'clr', 'en'], ['in', 'out']]],
+    ['$_DFF_', [['clk', 'arst'], ['in', 'out']]],
+    ['$_DFFE_', [['clk', 'arst', 'en'], ['in', 'out']]],
+    ['$_ALDFF_', [['clk', 'aload'], ['in', 'ain', 'out']]],
+    ['$_ALDFFE_', [['clk', 'aload', 'en'], ['in', 'ain', 'out']]],
+    ['$_SDFF_', [['clk', 'srst'], ['in', 'out']]],
+    ['$_SDFFE_', [['clk', 'srst', 'en'], ['in', 'out']]],
+    ['$_SDFFCE_', [['clk', 'srst', 'en'], ['in', 'out']]],
+    ['$_DLATCH_', [['en'], ['in', 'out']]],
+    ['$_ADLATCH_', [['en', 'arst'], ['in', 'out']]],
+    ['$_DLATCHSR_', [['en', 'set', 'clr'], ['in', 'out']]],
 ]);
 
 const techmap_dffs = new Set();
@@ -323,13 +323,21 @@ const techmap_port_map = new Map([
     ['clr', 'R'],
     ['in', 'D'],
     ['out', 'Q'],
-    ['clock', 'C'],
-    ['enable', 'E'],
+    ['clk', 'C'],
+    ['en', 'E'],
     ['aload', 'L'],
     ['ain', 'AD'],
     ['arst', 'R'],
     ['srst', 'R']
 ]);
+
+function port_to_polarity(port) {
+    switch (port) {
+        case 'clk': return 'clock';
+        case 'en': return 'enable';
+        default: return port;
+    }
+}
 
 function module_deps(data: Yosys.Output): [string, string | number][] {
     const out: [string, string | number][] = [];
@@ -724,8 +732,8 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
             for (const port of ports1) {
                 const pol = params.shift();
                 switch (pol) {
-                    case 'P': dev.polarity[port] = true; break;
-                    case 'N': dev.polarity[port] = false; break;
+                    case 'P': dev.polarity[port_to_polarity(port)] = true; break;
+                    case 'N': dev.polarity[port_to_polarity(port)] = false; break;
                     default: throw Error('Invalid polarity char ' + pol);
                 }
                 if (port.endsWith('rst')) {
