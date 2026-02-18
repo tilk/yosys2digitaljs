@@ -282,40 +282,27 @@ const gate_subst = new Map([
     ['$_XOR_', 'Xor'],
     ['$_XNOR_', 'Xnor'],
     ['$_MUX_', 'Mux'],
-    ['$_SR_**_', 'Dff'],
-    ['$_DFF_*_', 'Dff'],
-    ['$_DFFE_**_', 'Dff'],
-    ['$_DFFSR_***_', 'Dff'],
-    ['$_DFFSRE_****_', 'Dff'],
-    ['$_ADFF_**?_', 'Dff'],
-    ['$_ADFFE_**?*_', 'Dff'],
-    ['$_ALDFF_**_', 'Dff'],
-    ['$_ALDFFE_***_', 'Dff'],
-    ['$_SDFF_**?_', 'Dff'],
-    ['$_SDFFE_**?*_', 'Dff'],
-    ['$_SDFFCE_**?*_', 'Dff'],
-    ['$_DLATCH_*_', 'Dff'],
-    ['$_ADLATCH_**?_', 'Dff'],
-    ['$_DLATCHSR_**?_', 'Dff'],
 ]);
 
-const techmap_dff_kinds: [string, string[], string[]][] = [
-    ['$_SR_', ['set', 'clr'], ['out']],
-    ['$_DFF_', ['clock'], ['in', 'out']],
-    ['$_DFFE_', ['clock', 'enable'], ['in', 'out']],
-    ['$_DFFSR_', ['clock', 'set', 'clr'], ['in', 'out']],
-    ['$_DFFSRE_', ['clock', 'set', 'clr', 'enable'], ['in', 'out']],
-    ['$_DFF_', ['clock', 'arst'], ['in', 'out']],
-    ['$_DFFE_', ['clock', 'arst', 'enable'], ['in', 'out']],
-    ['$_ALDFF_', ['clock', 'aload'], ['in', 'ain', 'out']],
-    ['$_ALDFFE_', ['clock', 'aload', 'enable'], ['in', 'ain', 'out']],
-    ['$_SDFF_', ['clock', 'srst'], ['in', 'out']],
-    ['$_SDFFE_', ['clock', 'srst', 'enable'], ['in', 'out']],
-    ['$_SDFFCE_', ['clock', 'srst', 'enable'], ['in', 'out']],
-    ['$_DLATCH_', ['enable'], ['in', 'out']],
-    ['$_ADLATCH_', ['enable', 'arst'], ['in', 'out']],
-    ['$_DLATCHSR_', ['enable', 'set', 'clr'], ['in', 'out']],
-];
+const techmap_dff_kinds = new Map([
+    ['$_SR_', [['set', 'clr'], ['out']]],
+    ['$_DFF_', [['clock'], ['in', 'out']]],
+    ['$_DFFE_', [['clock', 'enable'], ['in', 'out']]],
+    ['$_DFFSR_', [['clock', 'set', 'clr'], ['in', 'out']]],
+    ['$_DFFSRE_', [['clock', 'set', 'clr', 'enable'], ['in', 'out']]],
+    ['$_DFF_', [['clock', 'arst'], ['in', 'out']]],
+    ['$_DFFE_', [['clock', 'arst', 'enable'], ['in', 'out']]],
+    ['$_ALDFF_', [['clock', 'aload'], ['in', 'ain', 'out']]],
+    ['$_ALDFFE_', [['clock', 'aload', 'enable'], ['in', 'ain', 'out']]],
+    ['$_SDFF_', [['clock', 'srst'], ['in', 'out']]],
+    ['$_SDFFE_', [['clock', 'srst', 'enable'], ['in', 'out']]],
+    ['$_SDFFCE_', [['clock', 'srst', 'enable'], ['in', 'out']]],
+    ['$_DLATCH_', [['enable'], ['in', 'out']]],
+    ['$_ADLATCH_', [['enable', 'arst'], ['in', 'out']]],
+    ['$_DLATCHSR_', [['enable', 'set', 'clr'], ['in', 'out']]],
+]);
+
+const techmap_dffs = new Set();
 
 function techmap_names_for(name: string, ports: string[]): string[] {
     return ports
@@ -324,9 +311,10 @@ function techmap_names_for(name: string, ports: string[]): string[] {
         .map(x => name + x.join('') + '_');
 }
 
-for (const [name, ports, _] of techmap_dff_kinds) {
+for (const [name, [ports, _]] of techmap_dff_kinds) {
     for (const s of techmap_names_for(name, ports)) {
         gate_subst.set(s, 'Dff');
+        techmap_dffs.add(s);
     }
 }
 
@@ -382,7 +370,7 @@ function order_ports(data: Yosys.Output): Portmaps {
     techmap_binary_gates.forEach((nm) => out[nm] = binmap);
     unary_gates.forEach((nm) => out[nm] = unmap);
     techmap_unary_gates.forEach((nm) => out[nm] = unmap);
-    for (const [name, ports1, ports2] of techmap_dff_kinds) {
+    for (const [name, [ports1, ports2]] of techmap_dff_kinds) {
         const portmap: Portmap = {};
         for (const pname of ports1.concat(ports2)) {
             portmap[techmap_port_map.get(pname)] = pname;
@@ -721,6 +709,31 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
             assert(cell.connections.CLR.length == decode_json_number(cell.parameters.WIDTH));
             assert(cell.port_directions.SET == 'input');
             assert(cell.port_directions.CLR == 'input');
+        }
+        if (techmap_dffs.has(cell.type)) {
+            const prefix = cell.type.match(/^[^_]*_[^_]*_/)[0];
+            const params = [...cell.type.split("_")[2]];
+            const [ports1, ports2] = techmap_dff_kinds.get(prefix);
+            for (const port of ports1.concat(ports2)) {
+                const mport = techmap_port_map.get(port);
+                assert(cell.connections[mport].length == 1);
+                assert(cell.port_directions[mport] == (mport == 'Q' ? 'output' : 'input'));
+            }
+            dev.bits = 1;
+            dev.polarity = {};
+            for (const port of ports1) {
+                const pol = params.shift();
+                switch (pol) {
+                    case 'P': dev.polarity[port] = true; break;
+                    case 'N': dev.polarity[port] = false; break;
+                    default: throw Error('Invalid polarity char ' + pol);
+                }
+                if (port.endsWith('rst')) {
+                    dev[port + '_value'] = Number(params.shift());
+                }
+            }
+            assert(params.length == 0);
+            // TODO: add attributes: enable_srst, no_data
         }
         switch (cell.type) {
             case '$neg': case '$pos':
