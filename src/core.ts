@@ -1343,7 +1343,7 @@ export function prepare_yosys_script(filenames: string[], options: Options): str
         .map((filename) => process_filename(filename))
         .map(cmd => isNodeEnvironment ? shell_escape_contents(cmd) : cmd);
 
-    const yosysScript = [...readFilesScript, 'setattr -mod -unset top', 'hierarchy -auto-top', 'proc', optimize_simp, fsmpass, 'memory -nomap', 'wreduce -memx', optimize, techmap]
+    const yosysScript = [...readFilesScript, 'setattr -mod -unset top', 'hierarchy -auto-top', 'proc', optimize_simp, fsmpass, 'memory -nomap', 'wreduce -memx', optimize, techmap, optimize]
     return yosysScript.join('; ');
 }
 
