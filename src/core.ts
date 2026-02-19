@@ -741,7 +741,10 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                 }
             }
             assert(params.length == 0);
-            // TODO: add attributes: enable_srst, no_data
+            if (!ports2.includes('in'))
+                dev.no_data = true;
+            if (prefix == '$_SDFFCE_')
+                dev.enable_srst = true;
         }
         switch (cell.type) {
             case '$neg': case '$pos':
