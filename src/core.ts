@@ -737,7 +737,7 @@ function yosys_to_digitaljs_mod(name: string, mod: Yosys.Module, portmaps: Portm
                     default: throw Error('Invalid polarity char ' + pol);
                 }
                 if (port.endsWith('rst')) {
-                    dev[port + '_value'] = Number(params.shift());
+                    dev[port + '_value'] = String(params.shift());
                 }
             }
             assert(params.length == 0);
