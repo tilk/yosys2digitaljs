@@ -1341,12 +1341,15 @@ export function prepare_yosys_script(filenames: string[], options: Options): str
                     ? "fsm" + fsmexpand
                     : "";
     const techmap = options.techmap ? "techmap" : "";
+    const abc = !options.abc ? "" :
+        options.abc.type == "gates" ? "abc -g " + options.abc.kinds.join(",") :
+        options.abc.type == "lut" ? "abc -lut " + options.abc.width : "";
 
     const readFilesScript = filenames
         .map((filename) => process_filename(filename))
         .map(cmd => isNodeEnvironment ? shell_escape_contents(cmd) : cmd);
 
-    const yosysScript = [...readFilesScript, 'setattr -mod -unset top', 'hierarchy -auto-top', 'proc', optimize_simp, fsmpass, 'memory -nomap', 'wreduce -memx', optimize, techmap, optimize]
+    const yosysScript = [...readFilesScript, 'setattr -mod -unset top', 'hierarchy -auto-top', 'proc', optimize_simp, fsmpass, 'memory -nomap', 'wreduce -memx', optimize, techmap, optimize, abc]
     return yosysScript.join('; ');
 }
 
