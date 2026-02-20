@@ -137,12 +137,24 @@ type ConvertOptions = {
     propagation?: number,
 };
 
+type AbcGates = {
+    type: "gates",
+    kinds: ("AND" | "OR" | "XOR" | "NAND" | "NOR" | "XNOR" | "MUX")[]
+};
+
+type AbcLut = {
+    type: "lut",
+    width: number
+};
+
 type Options = ConvertOptions & {
     optimize?: boolean,
     fsmexpand?: boolean,
     fsm?: boolean | "nomap",
     timeout?: number,
-    lint?: boolean
+    lint?: boolean,
+    techmap?: boolean,
+    abc?: AbcGates | AbcLut
 };
 
 type Output = {
