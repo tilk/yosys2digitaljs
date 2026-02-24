@@ -111,7 +111,6 @@ export async function process_files(data: {[key: string]: string}, options: Opti
     try {
         for (const [sname, content] of Object.entries(sanitized_data)) {
             await promisify(fs.writeFile)(path.resolve(dir.path, sname), content);
-            if (/\.(v|sv|il)$/.test(sname)) names.push(sname);
         }
         return await process(names, dir.path, options);
     } finally {

@@ -1320,8 +1320,7 @@ function process_filename(filename: string): string {
     const commands: { [key: string]: string } = {
         '.il': 'read_rtlil',
         '.sv': 'read_verilog -sv',
-        '.v': 'read_verilog',
-        '.vh': 'read_verilog'
+        '.v': 'read_verilog'
     };
 
     if (ext && ext in commands) {
