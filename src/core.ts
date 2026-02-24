@@ -1353,6 +1353,7 @@ export function prepare_yosys_script(filenames: string[], options: Options): str
 }
 
 export function prepare_verilator_args(filenames: string[]): string[] {
-    const processed_filenames = isNodeEnvironment ? filenames.filter(n => /\.(v|sv)$/.test(n)).map(shell_escape) : filenames;
+    filenames = filenames.filter(n => /\.(v|sv)$/.test(n));
+    const processed_filenames = isNodeEnvironment ? filenames.map(shell_escape) : filenames;
     return ['-lint-only', '-Wall', '-Wno-DECLFILENAME', '-Wno-UNOPT', '-Wno-UNOPTFLAT', ...processed_filenames];
 }
